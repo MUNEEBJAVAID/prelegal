@@ -2,29 +2,53 @@
 
 A Next.js prototype (PL-4) for drafting a [Common Paper Mutual NDA](https://commonpaper.com/standards/mutual-nda/1.0).
 
-- Fill in the key details (parties, purpose, effective date, terms, governing law) in the form.
-- The completed Mutual NDA — cover page plus Standard Terms — updates live next to the form.
-- Download the result as a PDF (via the browser's print dialog → "Save as PDF") or as Markdown.
-
-The Standard Terms are read at build time from `../templates/Mutual-NDA.md`, so the
-repository-level template stays the single source of truth.
+- Fill in the key details (parties, purpose, effective date, terms, governing law) in five numbered steps.
+  A progress meter shows how many required details are complete.
+- The completed Mutual NDA — cover page plus Standard Terms — updates live beside the form
+  (on phones, switch between **Details** and **Preview** tabs). Hover a Standard Terms reference
+  such as *Governing Law* to see the value you entered; click it to jump to that cover-page section.
+- Download as **PDF**, **Word (.docx)** or **Markdown**. If required details are blank you're asked
+  to fill them in first, or you can download anyway with placeholders.
+- Your draft is saved in this browser (localStorage), so a refresh doesn't lose your work.
 
 ## Development
 
 ```bash
 npm install
 npm run dev     # http://localhost:3000
+npm test        # Vitest unit tests
 npm run build   # production build
 npm run lint
 ```
 
-## Structure
+## How it works
+
+The Standard Terms are read at build time from `../templates/Mutual-NDA.md`, so the repository
+template stays the single source of truth.
+
+Every output is produced from one format-neutral **document model**:
+
+```
+NdaData (form) + StandardTerms (template)
+        └─ buildNdaDocument() ──► blocks ──┬─ DocumentPreview (React, on screen)
+                                           ├─ render/pdf.tsx   (@react-pdf/renderer)
+                                           ├─ render/docx.ts   (docx)
+                                           └─ render/markdown.ts
+```
+
+The PDF and Word libraries are loaded only when a download is requested.
 
 | Path | Purpose |
 | --- | --- |
 | `src/app/page.tsx` | Loads the Standard Terms and renders the creator |
-| `src/components/NdaCreator.tsx` | Client state, header actions and downloads |
-| `src/components/NdaForm.tsx` | Key-information form |
-| `src/components/NdaDocument.tsx` | Rendered Mutual NDA (screen + print) |
-| `src/lib/nda.ts` | Data model, defaults and Markdown generation |
-| `src/lib/standardTerms.ts` | Server-only loader/parser for the template |
+| `src/components/NdaCreator.tsx` | Page shell: header, downloads, mobile tabs, missing-fields flow |
+| `src/components/NdaForm.tsx` | Key-information form with progress and required-field flags |
+| `src/components/DocumentPreview.tsx` | On-screen rendering of the document model |
+| `src/components/MissingFieldsDialog.tsx` | Confirmation before downloading an incomplete NDA |
+| `src/lib/nda.ts` | Form data model, defaults, required fields, draft parsing |
+| `src/lib/terms.ts` | Pure parser for the Standard Terms template |
+| `src/lib/document.ts` | Format-neutral document model (`buildNdaDocument`) |
+| `src/lib/render/*` | PDF, Word and Markdown renderers |
+| `src/lib/draftStore.ts` | localStorage-backed draft (hydration-safe) |
+| `src/lib/download.ts` | File naming, lazy rendering and saving |
+| `src/lib/standardTerms.ts` | Server-only template loader |
