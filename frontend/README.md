@@ -2,10 +2,12 @@
 
 A Next.js prototype (PL-4) for drafting a [Common Paper Mutual NDA](https://commonpaper.com/standards/mutual-nda/1.0).
 
-- Fill in the key details (parties, purpose, effective date, terms, governing law) in five numbered steps.
-  A progress meter shows how many required details are complete.
+- **Chat** with the AI drafting assistant (PL-6): it asks about the parties and terms and fills in
+  the NDA from your answers, noting which fields each reply updated. The conversation is saved in this browser.
+- Or use **Edit fields** to fill in the key details (parties, purpose, effective date, terms, governing law)
+  directly, in five numbered steps. A progress meter shows how many required details are complete.
 - The completed Mutual NDA — cover page plus Standard Terms — updates live beside the form
-  (on phones, switch between **Details** and **Preview** tabs). Hover a Standard Terms reference
+  (on phones, switch between **Draft** and **Preview** tabs). Hover a Standard Terms reference
   such as *Governing Law* to see the value you entered; click it to jump to that cover-page section.
 - Download as **PDF**, **Word (.docx)** or **Markdown**. If required details are blank you're asked
   to fill them in first, or you can download anyway with placeholders.

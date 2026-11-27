@@ -30,9 +30,8 @@ start_app() {
 
   echo "Starting backend..."
   mkdir -p "$RUN_DIR"
-  local env_args=()
-  [[ -f "$ROOT/.env" ]] && env_args=(--env-file ../.env)
-  (cd "$ROOT/backend" && PORT="$PORT" nohup uv run ${env_args[@]+"${env_args[@]}"} prelegal-backend </dev/null >"$LOG_FILE" 2>&1 &
+  # The backend loads ../.env (OPENROUTER_API_KEY) itself.
+  (cd "$ROOT/backend" && PORT="$PORT" nohup uv run prelegal-backend </dev/null >"$LOG_FILE" 2>&1 &
     echo $! >"$PID_FILE")
 
   for _ in $(seq 1 60); do

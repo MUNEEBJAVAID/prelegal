@@ -60,7 +60,8 @@ npm run build                      # static export to frontend/out/
 
 ## Architecture notes
 
-- **Backend:** `create_app(settings)` in `backend/src/prelegal_backend/main.py`. Routers are mounted under `/api`, and the static frontend (`FRONTEND_DIR`, default `frontend/out`) is mounted last at `/`. The lifespan hook runs `init_db()`, which deletes and recreates the SQLite file (`DATABASE_PATH`). It uses the standard-library `sqlite3`, not an ORM. Tests pass a `Settings` that points at `tmp_path`.
+- **LLM:** `backend/src/prelegal_backend/llm.py` has `complete_structured(messages, Schema)`, which returns a validated Pydantic model. Schemas must be strict: `extra="forbid"`, with every field required, using `| None` for "no value". The callable lives in `app.state.llm`, so tests pass a fake with `create_app(settings, llm=fake)` and never hit the network. LiteLLM is imported lazily and warmed in a background thread at startup, because the import takes about 15 seconds. The backend loads the repo-root `.env` itself.
+- **Backend:** `create_app(settings, llm)` in `backend/src/prelegal_backend/main.py`. Routers are mounted under `/api`, and the static frontend (`FRONTEND_DIR`, default `frontend/out`) is mounted last at `/`. The lifespan hook runs `init_db()`, which deletes and recreates the SQLite file (`DATABASE_PATH`). It uses the standard-library `sqlite3`, not an ORM. Tests pass a `Settings` that points at `tmp_path`.
 - **Frontend static export:**
   - `next.config.ts` sets `output: "export"` and `trailingSlash` for builds, and in `next dev` rewrites `/api` to the backend instead.
   - Export mode rules out PPR, `cacheComponents`, `"use cache"`, server actions, route handlers and dynamic server rendering.
@@ -91,4 +92,8 @@ These are available as Tailwind colours `brand-yellow`, `brand-blue`, `brand-pur
   - **Login is fake.** `POST /api/auth/login` accepts any email and password, and the user is kept in sessionStorage.
   - `/` is the sign-in page, and `/nda/` is the creator behind `AuthGate`.
   - The start and stop scripts currently run the app locally (pid and logs in `.run/`). **Docker packaging is still to do.**
-- Not built yet: AI chat, real authentication, server-side document persistence, and document types other than the Mutual NDA.
+- **PL-6:** AI chat for the Mutual NDA.
+  - `POST /api/chat/nda` takes the conversation and the current `NdaData`. It returns `{reply, updates}`, where a null update means "unchanged".
+  - The frontend `applyUpdates` (`lib/chat.ts`) merges the updates through `parseDraft`.
+  - The left panel has **Chat | Edit fields** tabs. The conversation is saved in localStorage (`lib/chatStore.ts`).
+- Not built yet: real authentication, server-side document persistence, and document types other than the Mutual NDA.
