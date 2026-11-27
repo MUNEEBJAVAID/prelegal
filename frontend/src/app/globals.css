@@ -14,6 +14,12 @@
   --color-line-strong: #cfc6b5;
   --color-flag: #9a5b00;
   --color-flag-wash: #fbefd9;
+  /* Brand palette (login screen and app chrome). */
+  --color-brand-yellow: #ecad0a;
+  --color-brand-blue: #209dd7;
+  --color-brand-purple: #753991;
+  --color-brand-navy: #032147;
+  --color-brand-gray: #888888;
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
 }

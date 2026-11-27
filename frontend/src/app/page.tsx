@@ -1,6 +1,8 @@
-import { NdaCreator } from "@/components/NdaCreator";
-import { loadStandardTerms } from "@/lib/standardTerms";
+import type { Metadata } from "next";
+import { LoginForm } from "@/components/LoginForm";
 
-export default async function Home() {
-  return <NdaCreator terms={await loadStandardTerms()} />;
+export const metadata: Metadata = { title: "Sign in · Prelegal" };
+
+export default function LoginPage() {
+  return <LoginForm />;
 }
