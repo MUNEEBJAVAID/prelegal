@@ -2,10 +2,11 @@
 
 Next.js app (static export, served by the FastAPI backend) for drafting Common Paper agreements.
 
-- `/` is a placeholder sign-in screen. It accepts any email and password, and the user is kept in sessionStorage.
+- `/` is sign-in and `/signup/` is sign-up. The session is an HttpOnly cookie set by the backend.
+- `/documents/` lists the user's saved documents. `/draft/?id=N` reopens one, and `/draft/` starts a new one.
 - `/draft/` is the drafting workspace. **Chat** with the AI assistant, which works out which of the 11 supported documents you need (or suggests the closest one) and fills it in from your answers. You can also pick a document and use **Edit fields**.
 - The completed document (cover page plus Standard Terms) updates live beside the chat. Hover a Standard Terms reference such as *Governing Law* to see its value, and click it to jump to the cover page.
-- Download as **PDF**, **Word (.docx)** or **Markdown**. Drafts and the conversation are saved in this browser.
+- Download as **PDF**, **Word (.docx)** or **Markdown**. Drafts and the conversation are auto-saved to your account.
 
 ## Development
 
@@ -46,4 +47,5 @@ The PDF and Word libraries are loaded only when a download is requested.
 | `src/lib/terms.ts` | Template parsers (`parseStandardTerms` for the NDA, `parseClauses` for the rest) |
 | `src/lib/document.ts`, `genericDocument.ts` | Document model builders |
 | `src/lib/render/*` | PDF, Word and Markdown renderers |
-| `src/lib/draftStore.ts`, `workspaceStore.ts`, `chatStore.ts` | localStorage-backed state (hydration-safe) |
+| `src/lib/draftStore.ts` | The current draft, auto-saved to `/api/documents` |
+| `src/lib/session.ts`, `src/lib/api.ts` | Signed-in user; API client |

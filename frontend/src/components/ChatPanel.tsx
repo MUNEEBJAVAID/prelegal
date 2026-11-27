@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ApiError } from "@/lib/api";
 import { sendChat, type ChatMessage, type ChatTurn } from "@/lib/chat";
-import { useChat } from "@/lib/chatStore";
+import { draftGeneration, useDraft } from "@/lib/draftStore";
 import type { Values } from "@/lib/registry";
 
 type Props = {
@@ -24,7 +24,8 @@ const SUGGESTIONS = [
 
 /** Free-form chat with the AI, which picks the document and fills it in as the user answers. */
 export function ChatPanel({ documentType, values, onTurn }: Props) {
-  const { messages, setMessages } = useChat();
+  const { messages, update } = useDraft();
+  const setMessages = (next: ChatMessage[]) => update({ messages: next });
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +44,11 @@ export function ChatPanel({ documentType, values, onTurn }: Props) {
   async function ask(history: ChatMessage[]) {
     setBusy(true);
     setError(null);
+    const generation = draftGeneration();
     try {
       const turn = await sendChat(history, latest.current.documentType, latest.current.values);
+      // The user opened or started another draft while waiting: this reply belongs to the old one.
+      if (draftGeneration() !== generation) return;
       const changed = latest.current.onTurn(turn);
       setMessages([...history, { role: "assistant", content: turn.reply, ...(changed.length && { updated: changed }) }]);
     } catch (e) {
@@ -161,7 +165,7 @@ export function ChatPanel({ documentType, values, onTurn }: Props) {
         <button
           type="submit"
           disabled={busy || !input.trim()}
-          className="rounded-md bg-ink px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-ink-soft disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-brand-purple px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-brand-purple/90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Send
         </button>

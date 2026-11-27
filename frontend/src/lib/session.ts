@@ -1,55 +1,27 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
+import { fetchMe, logout, setUnauthorizedHandler, type SessionUser } from "./api";
+import { draftActions } from "./draftStore";
 
 /**
- * The signed-in user, kept in sessionStorage so it lasts for the browser tab.
- * This is a placeholder: the backend's /api/auth/login accepts any credentials
- * and nothing here is a security boundary yet.
+ * The signed-in user. The session itself is an HttpOnly cookie set by the
+ * backend; this store only mirrors who it belongs to, asking /api/auth/me once.
  */
 
-export type SessionUser = { id: number; email: string };
-
-/**
- * `undefined` until the client has read storage (server render and hydration),
- * then the user or `null` when signed out.
- */
+/** `undefined` while unknown (server render, hydration, first request), else the user or `null`. */
 export type SessionState = SessionUser | null | undefined;
 
-const STORAGE_KEY = "prelegal:session:v1";
+const RETRY_MS = 3000;
 
-/** Rebuilds a session from untrusted stored JSON; null if it isn't one. */
-export function parseSession(raw: string | null): SessionUser | null {
-  if (!raw) return null;
-  try {
-    const v: unknown = JSON.parse(raw);
-    if (!v || typeof v !== "object") return null;
-    const { id, email } = v as Record<string, unknown>;
-    return typeof id === "number" && typeof email === "string" && email ? { id, email } : null;
-  } catch {
-    return null;
-  }
-}
-
-let state: SessionUser | null | undefined;
+let state: SessionState;
+let loading = false;
+/** The session ended on its own (e.g. the server restarted), not because the user signed out. */
+let expired = false;
 const listeners = new Set<() => void>();
 
-function read(): SessionUser | null {
-  try {
-    return parseSession(window.sessionStorage.getItem(STORAGE_KEY));
-  } catch {
-    return null;
-  }
-}
-
-function commit(user: SessionUser | null) {
-  try {
-    if (user) window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-    else window.sessionStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Storage unavailable (private mode, quota): the session lasts until reload.
-  }
-  state = user;
+function set(next: SessionState) {
+  state = next;
   listeners.forEach((l) => l());
 }
 
@@ -58,14 +30,61 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function getSnapshot(): SessionUser | null {
-  if (state === undefined) state = read();
-  return state;
+/** Asks the backend who is signed in, once per page load. Network and server errors are retried. */
+function ensureLoaded() {
+  if (loading) return;
+  loading = true;
+  fetchMe().then(
+    // Only fills in an unknown state: a sign-in that finished first wins.
+    (user) => state === undefined && set(user),
+    () =>
+      setTimeout(() => {
+        loading = false;
+        ensureLoaded();
+      }, RETRY_MS),
+  );
 }
 
-export const signIn = (user: SessionUser) => commit(user);
-export const signOut = () => commit(null);
+export function signIn(user: SessionUser) {
+  expired = false;
+  draftActions.discard();
+  set(user);
+}
+
+/** Saves any waiting draft change, ends the session and forgets the draft. */
+export async function signOut() {
+  await draftActions.flush().catch(() => {});
+  try {
+    await logout();
+  } finally {
+    draftActions.discard();
+    set(null);
+  }
+}
+
+/** Whether the last session ended on its own, so the sign-in screen can say so (until the next sign-in). */
+export function useSessionExpired(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => expired,
+    () => false,
+  );
+}
+
+// Any API 401 (e.g. the server restarted and its database was reset) ends the session here too.
+setUnauthorizedHandler(() => {
+  if (!state) return;
+  expired = true;
+  draftActions.discard();
+  set(null);
+});
 
 export function useSession(): SessionState {
-  return useSyncExternalStore(subscribe, getSnapshot, () => undefined);
+  const session = useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => undefined,
+  );
+  useEffect(ensureLoaded, []);
+  return session;
 }

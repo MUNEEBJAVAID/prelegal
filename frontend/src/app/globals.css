@@ -1,27 +1,30 @@
 @import "tailwindcss";
 
-/* "Refined legal": warm paper tones, serif document, restrained ink-navy accent. */
+/* App palette derived from the brand: cool neutral canvas, white paper, navy ink; the document itself stays serif. */
 @theme inline {
-  --color-canvas: #f1ece3;
-  --color-paper: #fffdf9;
-  --color-panel: #fbf8f2;
-  --color-ink: #1f2a44;
-  --color-ink-soft: #3a4766;
-  --color-ink-wash: #e7ebf3;
-  --color-text: #24221f;
-  --color-muted: #6f6a60;
-  --color-line: #e3dccf;
-  --color-line-strong: #cfc6b5;
+  --color-canvas: #f4f6fa;
+  --color-paper: #ffffff;
+  --color-panel: #f8fafc;
+  --color-ink: #032147;
+  --color-ink-soft: #0f3a6b;
+  --color-ink-wash: #e5f3fb;
+  --color-text: #1c2533;
+  --color-muted: #5f6b7a;
+  --color-line: #e3e8ef;
+  --color-line-strong: #cbd3de;
   --color-flag: #9a5b00;
   --color-flag-wash: #fbefd9;
-  /* Brand palette (login screen and app chrome). */
+  /* Brand palette (CLAUDE.md). Purple is for primary/submit actions. */
   --color-brand-yellow: #ecad0a;
   --color-brand-blue: #209dd7;
   --color-brand-purple: #753991;
   --color-brand-navy: #032147;
   --color-brand-gray: #888888;
+  /* Brand blue darkened for text on white (4.5:1 contrast). */
+  --color-link: #0b6a99;
   --font-sans: var(--font-geist-sans);
-  --font-serif: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
+  --font-serif:
+    var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
 }
 
 body {

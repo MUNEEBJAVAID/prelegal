@@ -22,7 +22,7 @@ scripts/stop-windows.ps1
 The start script builds the frontend as static files and runs the backend in the background at
 http://localhost:8000 (logs in `.run/backend.log`). Docker packaging will replace these local scripts.
 
-Sign-in is a placeholder for now: any email and password are accepted.
+Create an account at `/signup/`, then sign in. Your drafts are auto-saved under **My documents**. The database is recreated on every start, so accounts and documents don't survive a restart.
 
 ## Layout
 

@@ -13,6 +13,8 @@ from prelegal_backend.documents import registry
 from prelegal_backend.llm import LLMError, complete_structured
 from prelegal_backend.main import create_app
 
+from conftest import sign_up
+
 IDS = tuple(registry().ids)
 
 
@@ -42,10 +44,13 @@ def fake() -> FakeLLM:
 @pytest.fixture
 def chat_client(settings: Settings, fake: FakeLLM) -> Iterator[TestClient]:
     with TestClient(create_app(settings, llm=fake)) as c:
+        sign_up(c)
         yield c
 
 
 def post(client: TestClient, content: str = "hi", **extra):
+    if not client.cookies:
+        sign_up(client)
     return client.post("/api/chat", json={"messages": [{"role": "user", "content": content}], **extra})
 
 
@@ -264,3 +269,10 @@ def test_provider_errors_become_llm_error(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(litellm, "completion", boom)
     with pytest.raises(LLMError, match="unavailable"):
         complete_structured([{"role": "user", "content": "hi"}], turn_model(IDS))
+
+
+def test_chat_requires_sign_in(settings: Settings, fake: FakeLLM) -> None:
+    with TestClient(create_app(settings, llm=fake)) as c:
+        res = c.post("/api/chat", json={"messages": [{"role": "user", "content": "hi"}]})
+    assert res.status_code == 401
+    assert fake.calls == []

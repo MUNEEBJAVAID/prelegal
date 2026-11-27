@@ -6,10 +6,24 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from . import auth, chat
+from . import auth, chat, drafts
 from .config import Settings
 from .db import init_db
 from .llm import StructuredLLM, complete_structured, warm_up
+
+
+class FrontendFiles(StaticFiles):
+    """The static export, plus Next's prefetch requests for page segments.
+
+    `next build` writes a page's segment data to `__next.<segment>/__PAGE__.txt`,
+    while the client router asks for `__next.<segment>.__PAGE__.txt`.
+    """
+
+    def lookup_path(self, path: str):
+        full_path, stat = super().lookup_path(path)
+        if stat is None and path.endswith(".__PAGE__.txt"):
+            return super().lookup_path(path.removesuffix(".__PAGE__.txt") + "/__PAGE__.txt")
+        return full_path, stat
 
 
 def create_app(settings: Settings | None = None, llm: StructuredLLM | None = None) -> FastAPI:
@@ -32,9 +46,10 @@ def create_app(settings: Settings | None = None, llm: StructuredLLM | None = Non
 
     app.include_router(auth.router)
     app.include_router(chat.router)
+    app.include_router(drafts.router)
 
     # Mounted last so it never shadows an API route.
     if settings.frontend_dir.is_dir():
-        app.mount("/", StaticFiles(directory=settings.frontend_dir, html=True), name="frontend")
+        app.mount("/", FrontendFiles(directory=settings.frontend_dir, html=True), name="frontend")
 
     return app

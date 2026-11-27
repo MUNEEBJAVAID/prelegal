@@ -14,6 +14,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from .auth import CurrentUser
 from .documents import DocumentType, FieldDef, Registry, registry
 from .llm import LLMError
 
@@ -155,7 +156,7 @@ def valid_updates(doc: DocumentType | None, updates: list[FieldUpdate]) -> list[
 
 
 @router.post("/chat")
-def chat(body: ChatRequest, request: Request) -> ChatResponse:
+def chat(body: ChatRequest, request: Request, user: CurrentUser) -> ChatResponse:
     reg = registry()
     schema = turn_model(tuple(reg.ids))
     history = [m.model_dump() for m in body.messages]

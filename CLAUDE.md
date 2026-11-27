@@ -19,6 +19,7 @@ When instructed to build a feature:
 2. Develop the feature. Don't skip any step of the 7-step feature-dev process
 3. Thoroughly test the feature with unit tests and integration tests and fix any issues
 4. Submit a PR using your GitHub tools
+5. The GitHub MCP token can't merge (403) and `gh` isn't installed, so merge locally: `git checkout main && git pull --ff-only && git merge --no-ff <branch> && git push origin main`, then move the Jira ticket to Done and stay on `main`
 
 Branches are named `feature/PL-N-short-name` and commit messages start with `PL-N: `.
 
@@ -26,7 +27,7 @@ Branches are named `feature/PL-N-short-name` and commit messages start with `PL-
 
 When writing code that calls LLMs, use your Cerebras skill to call the `openrouter/openai/gpt-oss-120b` model through LiteLLM via OpenRouter, with Cerebras as the inference provider. Use Structured Outputs so that you can interpret the results and populate fields in the legal document.
 
-There is an `OPENROUTER_API_KEY` in the `.env` file in the project root. The start scripts pass `.env` to the backend.
+There is an `OPENROUTER_API_KEY` in the `.env` file in the project root. The backend loads it itself at startup; never print or commit its value.
 
 ## Technical design
 
@@ -68,13 +69,17 @@ npm run build                      # static export to frontend/out/
   - Server components may only read files at build time. For example, `lib/standardTerms.ts` reads `../templates/Mutual-NDA.md` relative to `frontend/`.
 - **Document registry:** `documents.json` at the repo root is the single source of truth for supported document types. It defines their parties (each role expands to `<role>.company/.name/.title/.noticeAddress`) and their fields; shared fields live in `commonFields`. The backend (`documents.py`) and the frontend (`lib/registry.ts`, read at build time by `lib/catalog.server.ts`) both expand it, so keep the two in sync. A field's label, plus its `refs` aliases, is the template term it defines. A test asserts that every term each template references resolves to a party or field.
 - **Generic documents:** `parseClauses` (`lib/terms.ts`) parses any template's nested list. `buildGenericDocument` (`lib/genericDocument.ts`) generates the cover page, signature table and Standard Terms, using the same `DocumentModel` the NDA uses, so all renderers work unchanged. The Mutual NDA keeps its own model (`lib/document.ts`, `NdaData`) and maps to flat field values with `ndaToValues`/`ndaFromValues`.
-- **Chat:** `POST /api/chat` takes `{messages, documentType, values}` and returns `{reply, documentType, updates: [{field, value}]}`. `documentType` is restricted to the registry ids, and updates are filtered to the document's fields and kinds. `components/DraftingWorkspace.tsx` (route `/draft/`) applies each turn.
+- **Chat:** `POST /api/chat` takes `{messages, documentType, values}` and returns `{reply, documentType, updates: [{field, value}]}`. `documentType` is restricted to the registry ids, and updates are filtered to the document's fields and kinds. `components/DraftingWorkspace.tsx` (route `/draft/`) applies each turn through `applyFieldUpdates`.
+  - When the model switches to a new document, `chat.py` calls it a second time with that document's fields and the `JUST_SELECTED` instruction, so details already given are filled in the same turn. If that call fails, the first answer is kept.
+  - Tests use `FakeLLM`/`SequenceLLM` in `backend/tests/test_chat.py`.
 - **Mutual NDA creator:**
   - One format-neutral document model, `buildNdaDocument()` in `lib/document.ts`, feeds the preview and the PDF, Word and Markdown renderers in `lib/render/`. Change agreement wording there, never in a renderer.
   - The renderers are loaded with dynamic `import()`.
   - Each `REQUIRED_FIELDS` id in `lib/nda.ts` must match the DOM id of its form control.
-  - Drafts are stored in localStorage and always pass through `parseDraft`.
-- **Client stores** (`lib/draftStore.ts`, `lib/session.ts`) follow one pattern: a module-level `useSyncExternalStore` store whose server snapshot is static, so hydration never mismatches.
+  - The NDA is stored as flat field values like every other document, and is rebuilt through `ndaFromValues`/`parseDraft`.
+- **Auth:** `auth.py` hashes passwords with scrypt and keeps sessions in a `sessions` table (30 days), sent as the HttpOnly `prelegal_session` cookie. `CurrentUser` is the dependency for protected routes (`/api/chat`, `/api/documents`). Tests use `sign_up()` and the `user_client` fixture in `tests/conftest.py`.
+- **Saved documents:** `drafts.py` serves `/api/documents` (CRUD, always scoped to the user; another user's id is a 404). A document stores `documentType`, flat `values` and the chat `messages`; the title is derived from the type and party names.
+- **Client stores** (`lib/draftStore.ts`: the current draft, auto-saved to the server about 800ms after each change, with a `generation` counter so late results for another draft are dropped; `lib/session.ts`: the signed-in user from `/api/auth/me`) follow one pattern: a module-level `useSyncExternalStore` store whose server snapshot is static, so hydration never mismatches.
 
 ## Color Scheme
 - Accent Yellow: `#ecad0a`
@@ -92,20 +97,22 @@ These are available as Tailwind colours `brand-yellow`, `brand-blue`, `brand-pur
 - **PL-5:** V1 foundation:
   - The FastAPI backend serves the static frontend.
   - The SQLite `users` table is recreated on every start.
-  - **Login is fake.** `POST /api/auth/login` accepts any email and password, and the user is kept in sessionStorage.
+  - Login was a placeholder until PL-9.
   - `/` is the sign-in page, and the app sits behind `AuthGate` (now at `/draft/`).
   - The start and stop scripts currently run the app locally (pid and logs in `.run/`). **Docker packaging is still to do.**
 - **PL-6:** AI chat for the Mutual NDA.
   - This ticket added the first chat endpoint (`/api/chat/nda`); PL-7 replaced it with `/api/chat`.
-  - The left panel has **Chat | Edit fields** tabs. The conversation is saved in localStorage (`lib/chatStore.ts`).
+  - The left panel has **Chat | Edit fields** tabs. PL-9 moved the conversation to the saved document.
 - **PL-7:** All 11 document types from the catalog.
   - The AI identifies the document the user needs. For an unsupported document, it explains that and suggests the closest one, then fills the fields in.
   - `/draft/` has a document picker, Chat | Edit fields tabs (with a generic field form for the 10 non-NDA documents), a live preview, and PDF, Word and Markdown downloads for every document.
-  - Drafts are saved per document in localStorage (`lib/workspaceStore.ts`).
-- **UI polish:**
+- **UI polish** (no ticket, PR #7):
   - Starter prompts in the empty chat, and a progress meter for required details.
   - Picking a document by hand adds an assistant message saying what happens next.
   - Focus returns to the chat input after each reply.
   - The login form validates in the browser.
   - When the AI first chooses a document, the backend asks it a second time with that document's fields (`just_selected`), so details the user already gave are filled in the same turn.
-- Not built yet: real authentication, server-side document persistence, and Docker packaging.
+- **Running it now:** `scripts/start-windows.ps1` (or the mac/linux script) builds the frontend and serves everything at http://localhost:8000. Create an account at `/signup/`. Accounts and documents are lost when the server restarts, because the database is recreated.
+- **Tests:** about 39 backend (pytest) and 121 frontend (Vitest) tests. Lint, `tsc` and `npm run build` should stay clean.
+- **PL-9:** sign up and sign in, per-user documents auto-saved to the server, a **My documents** dashboard (`/documents/`, reopen with `/draft/?id=N`), an app shell with the brand palette, and a "draft, subject to legal review" disclaimer in the app and at the end of every PDF, Word and Markdown export (`DISCLAIMER_BLOCK` in `lib/document.ts`).
+- **Not built yet:** Docker packaging, and a persistent database.

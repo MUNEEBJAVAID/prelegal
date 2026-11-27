@@ -36,3 +36,13 @@ def test_database_is_recreated_on_every_start(settings: Settings) -> None:
             assert conn.execute("SELECT COUNT(*) FROM users").fetchone() == (0,)
         finally:
             conn.close()
+
+
+def test_serves_next_prefetch_segments(settings: Settings) -> None:
+    segment = settings.frontend_dir / "nda" / "__next.nda"
+    segment.mkdir()
+    (segment / "__PAGE__.txt").write_text("rsc")
+    with TestClient(create_app(settings)) as c:
+        res = c.get("/nda/__next.nda.__PAGE__.txt?_rsc=abc")
+    assert res.status_code == 200
+    assert res.text == "rsc"

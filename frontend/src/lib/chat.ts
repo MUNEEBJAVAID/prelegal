@@ -1,4 +1,4 @@
-import { ApiError } from "./api";
+import { request } from "./api";
 import type { Values } from "./registry";
 
 /** A chat bubble. `updated` lists the fields an assistant turn filled in. */
@@ -25,28 +25,19 @@ export async function sendChat(
   values: Values,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ChatTurn> {
-  let res: Response;
-  try {
-    res = await fetchImpl("/api/chat", {
+  return request<ChatTurn>(
+    "/api/chat",
+    {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+      body: {
         messages: messages.slice(-MAX_HISTORY).map(({ role, content }) => ({ role, content })),
         documentType,
         values,
-      }),
-    });
-  } catch {
-    throw new ApiError("Couldn’t reach the server. Check your connection and try again.");
-  }
-  if (!res.ok) {
-    const detail = await res
-      .json()
-      .then((b: { detail?: unknown }) => (typeof b.detail === "string" ? b.detail : null))
-      .catch(() => null);
-    throw new ApiError(detail ?? "The AI assistant couldn’t reply. Please try again.");
-  }
-  return (await res.json()) as ChatTurn;
+      },
+    },
+    "The AI assistant couldn’t reply. Please try again.",
+    fetchImpl,
+  );
 }
 
 /** Rebuilds a saved conversation from untrusted JSON; falls back to just the greeting. */
