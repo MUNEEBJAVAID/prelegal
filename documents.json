@@ -1,0 +1,232 @@
+{
+  "$comment": "Supported document types: the fields the AI fills and the generated cover page shows. Read by backend (chat) and frontend (build time). Field labels double as the template term names they resolve (see `refs` for aliases). Each party role adds <role>.company/.name/.title/.noticeAddress fields.",
+  "commonFields": {
+    "effectiveDate": { "label": "Effective Date", "kind": "date", "required": true, "description": "The date the agreement takes effect." },
+    "orderDate": { "label": "Order Date", "kind": "date", "required": true, "description": "The date of the Order Form." },
+    "subscriptionPeriod": { "label": "Subscription Period", "kind": "text", "required": true, "description": "Length of the subscription, e.g. '12 months'." },
+    "nonRenewalNoticeDate": { "label": "Non-Renewal Notice Date", "kind": "text", "required": true, "description": "How far before renewal a party must give notice not to renew, e.g. '30 days before the end of the Subscription Period'." },
+    "generalCapAmount": { "label": "General Cap Amount", "kind": "text", "required": true, "description": "Cap on each party's liability, e.g. 'the fees paid or payable in the 12 months before the claim'." },
+    "increasedClaims": { "label": "Increased Claims", "kind": "longtext", "required": false, "description": "Claims subject to the higher Increased Cap Amount, if any." },
+    "increasedCapAmount": { "label": "Increased Cap Amount", "kind": "text", "required": false, "description": "Higher liability cap for Increased Claims, if any." },
+    "unlimitedClaims": { "label": "Unlimited Claims", "kind": "longtext", "required": false, "description": "Claims with no liability cap, if any." },
+    "providerCoveredClaims": { "label": "Provider Covered Claims", "kind": "longtext", "required": false, "description": "Claims the Provider will defend and indemnify against, beyond the standard ones." },
+    "customerCoveredClaims": { "label": "Customer Covered Claims", "kind": "longtext", "required": false, "description": "Claims the Customer will defend and indemnify against." },
+    "additionalWarranties": { "label": "Additional Warranties", "kind": "longtext", "required": false, "description": "Warranties beyond the Standard Terms, if any." },
+    "dpa": { "label": "DPA", "kind": "text", "required": false, "description": "The Data Processing Agreement that applies, if any." },
+    "securityPolicy": { "label": "Security Policy", "kind": "longtext", "required": false, "description": "The security policy or measures that apply." },
+    "governingLaw": { "label": "Governing Law", "kind": "text", "required": true, "description": "The jurisdiction whose law governs, e.g. 'Delaware'." },
+    "chosenCourts": { "label": "Chosen Courts", "kind": "text", "required": true, "description": "Courts with exclusive jurisdiction, e.g. 'the state and federal courts in New Castle County, Delaware'." }
+  },
+  "documents": [
+    {
+      "id": "mutual-nda",
+      "name": "Mutual Non-Disclosure Agreement",
+      "shortName": "Mutual NDA",
+      "description": "Two parties share confidential information with each other, e.g. to evaluate a business relationship.",
+      "template": "templates/Mutual-NDA.md",
+      "kind": "nda",
+      "parties": [],
+      "fields": [
+        { "key": "party1.company", "label": "Party 1 company", "kind": "text", "required": true },
+        { "key": "party1.name", "label": "Party 1 signer name", "kind": "text", "required": true },
+        { "key": "party1.title", "label": "Party 1 signer title", "kind": "text", "required": true },
+        { "key": "party1.noticeAddress", "label": "Party 1 notice address", "kind": "text", "required": true, "description": "Email or postal address for legal notices." },
+        { "key": "party2.company", "label": "Party 2 company", "kind": "text", "required": true },
+        { "key": "party2.name", "label": "Party 2 signer name", "kind": "text", "required": true },
+        { "key": "party2.title", "label": "Party 2 signer title", "kind": "text", "required": true },
+        { "key": "party2.noticeAddress", "label": "Party 2 notice address", "kind": "text", "required": true, "description": "Email or postal address for legal notices." },
+        { "key": "purpose", "label": "Purpose", "kind": "longtext", "required": true, "description": "How Confidential Information may be used." },
+        { "key": "effectiveDate", "label": "Effective Date", "kind": "date", "required": true },
+        { "key": "mndaTermType", "label": "MNDA Term type", "kind": "choice", "required": true, "options": ["expires", "until-terminated"], "description": "'expires' after mndaTermYears, or continues 'until-terminated'." },
+        { "key": "mndaTermYears", "label": "MNDA Term years", "kind": "number", "required": true, "description": "1-99; used when the MNDA term expires." },
+        { "key": "confidentialityType", "label": "Term of Confidentiality type", "kind": "choice", "required": true, "options": ["years", "perpetuity"], "description": "Protected for confidentialityYears ('years'), or in 'perpetuity'." },
+        { "key": "confidentialityYears", "label": "Term of Confidentiality years", "kind": "number", "required": true, "description": "1-99; used when confidentiality lasts a number of years." },
+        { "key": "governingLaw", "label": "Governing Law", "kind": "text", "required": true, "description": "A US state, e.g. 'Delaware'." },
+        { "key": "jurisdiction", "label": "Jurisdiction", "kind": "text", "required": true, "description": "Courts with jurisdiction, e.g. 'courts located in New Castle, DE'." },
+        { "key": "modifications", "label": "MNDA Modifications", "kind": "longtext", "required": false, "description": "Changes to the Standard Terms; empty for none." }
+      ]
+    },
+    {
+      "id": "csa",
+      "name": "Cloud Service Agreement",
+      "shortName": "Cloud Service Agreement",
+      "description": "A Provider sells SaaS or another cloud service to a Customer on a subscription.",
+      "template": "templates/CSA.md",
+      "coverTitle": "Cover Page",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate", "orderDate", "subscriptionPeriod", "nonRenewalNoticeDate",
+        { "key": "technicalSupport", "label": "Technical Support", "kind": "longtext", "required": false, "description": "Support the Provider offers, e.g. 'email support on business days'." },
+        "generalCapAmount", "providerCoveredClaims", "customerCoveredClaims", "dpa", "governingLaw", "chosenCourts"
+      ]
+    },
+    {
+      "id": "software-license",
+      "name": "Software License Agreement",
+      "shortName": "Software License Agreement",
+      "description": "A Provider licenses on-premise or downloadable software to a Customer.",
+      "template": "templates/Software-License-Agreement.md",
+      "coverTitle": "Cover Page",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate", "orderDate", "subscriptionPeriod", "nonRenewalNoticeDate",
+        { "key": "permittedUses", "label": "Permitted Uses", "kind": "longtext", "required": true, "description": "What the Customer may use the software for." },
+        { "key": "licenseLimits", "label": "License Limits", "kind": "text", "required": false, "description": "Limits on use, e.g. number of users or installations." },
+        { "key": "paymentProcess", "label": "Payment Process", "kind": "longtext", "required": true, "description": "How and when fees are invoiced and paid." },
+        { "key": "deletionProcedure", "label": "Deletion Procedure", "kind": "longtext", "required": false, "description": "How the Customer removes the software when the license ends." },
+        { "key": "warrantyPeriod", "label": "Warranty Period", "kind": "text", "required": true, "description": "How long the software warranty lasts, e.g. '90 days'." },
+        "additionalWarranties", "generalCapAmount", "increasedClaims", "increasedCapAmount", "unlimitedClaims",
+        "providerCoveredClaims", "customerCoveredClaims", "governingLaw", "chosenCourts"
+      ]
+    },
+    {
+      "id": "sla",
+      "name": "Service Level Agreement",
+      "shortName": "SLA",
+      "description": "Uptime and support response commitments, with service credits, for a cloud service.",
+      "template": "templates/sla.md",
+      "coverTitle": "Order Form",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate", "subscriptionPeriod",
+        { "key": "targetUptime", "label": "Target Uptime", "kind": "text", "required": true, "description": "Monthly availability target, e.g. '99.9%'." },
+        { "key": "targetResponseTime", "label": "Target Response Time", "kind": "text", "required": true, "description": "Support response target, e.g. '4 business hours'." },
+        { "key": "supportChannel", "label": "Support Channel", "kind": "text", "required": true, "description": "Where support requests go, e.g. 'support@provider.com'." },
+        { "key": "uptimeCredit", "label": "Uptime Credit", "kind": "text", "required": true, "description": "Credit when uptime is missed, e.g. '10% of monthly fees'." },
+        { "key": "responseTimeCredit", "label": "Response Time Credit", "kind": "text", "required": true, "description": "Credit when response times are missed." },
+        { "key": "scheduledDowntime", "label": "Scheduled Downtime", "kind": "text", "required": false, "description": "Maintenance windows excluded from uptime." }
+      ]
+    },
+    {
+      "id": "dpa",
+      "name": "Data Processing Agreement",
+      "shortName": "DPA",
+      "description": "Terms for a Provider processing personal data on a Customer's behalf (GDPR and similar laws).",
+      "template": "templates/DPA.md",
+      "coverTitle": "Key Terms",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate",
+        { "key": "agreement", "label": "Agreement", "kind": "text", "required": true, "description": "The main agreement this DPA supplements, e.g. 'Cloud Service Agreement dated 1 January 2026'." },
+        { "key": "natureAndPurpose", "label": "Nature and Purpose of Processing", "kind": "longtext", "required": true },
+        { "key": "categoriesOfPersonalData", "label": "Categories of Personal Data", "kind": "longtext", "required": true },
+        { "key": "categoriesOfDataSubjects", "label": "Categories of Data Subjects", "kind": "longtext", "required": true },
+        { "key": "specialCategoryData", "label": "Special Category Data", "kind": "longtext", "required": false, "description": "Sensitive data (health, biometrics, ...) processed, if any." },
+        { "key": "specialCategorySafeguards", "label": "Special Category Data Restrictions or Safeguards", "kind": "longtext", "required": false },
+        { "key": "frequencyOfTransfer", "label": "Frequency of Transfer", "kind": "text", "required": true, "description": "e.g. 'continuous'." },
+        { "key": "durationOfProcessing", "label": "Duration of Processing", "kind": "text", "required": true, "description": "e.g. 'for the term of the Agreement'." },
+        { "key": "approvedSubprocessors", "label": "Approved Subprocessors", "kind": "longtext", "required": true },
+        { "key": "governingMemberState", "label": "Governing Member State", "kind": "text", "required": true, "description": "EU member state for the Standard Contractual Clauses, e.g. 'Ireland'." },
+        "securityPolicy",
+        { "key": "providerSecurityContact", "label": "Provider Security Contact", "kind": "text", "required": true, "description": "Who to contact about security incidents." }
+      ]
+    },
+    {
+      "id": "baa",
+      "name": "Business Associate Agreement",
+      "shortName": "BAA",
+      "description": "HIPAA terms for a Provider handling protected health information for a covered Company.",
+      "template": "templates/BAA.md",
+      "coverTitle": "Key Terms",
+      "parties": ["Provider", "Company"],
+      "fields": [
+        { "key": "agreement", "label": "Agreement", "kind": "text", "required": true, "description": "The main agreement this BAA supplements." },
+        { "key": "baaEffectiveDate", "label": "BAA Effective Date", "kind": "date", "required": true },
+        { "key": "breachNotificationPeriod", "label": "Breach Notification Period", "kind": "text", "required": true, "description": "How quickly a breach must be reported, e.g. '30 days'." },
+        { "key": "limitations", "label": "Limitations", "kind": "longtext", "required": false, "description": "Limits on how the Provider may use or disclose PHI, if any." }
+      ]
+    },
+    {
+      "id": "ai-addendum",
+      "name": "AI Addendum",
+      "shortName": "AI Addendum",
+      "description": "Adds terms for AI features: whether customer data may be used for training, and how AI inputs and outputs are treated.",
+      "template": "templates/AI-Addendum.md",
+      "coverTitle": "Cover Page",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate",
+        { "key": "trainingData", "label": "Training Data", "kind": "longtext", "required": true, "description": "Customer data the Provider may use for training, or 'None'." },
+        { "key": "trainingPurposes", "label": "Training Purposes", "kind": "longtext", "required": true, "description": "What training is allowed for, e.g. 'improving the Provider's models for all customers'." },
+        { "key": "trainingRestrictions", "label": "Training Restrictions", "kind": "longtext", "required": false },
+        { "key": "improvementRestrictions", "label": "Improvement Restrictions", "kind": "longtext", "required": false }
+      ]
+    },
+    {
+      "id": "psa",
+      "name": "Professional Services Agreement",
+      "shortName": "Professional Services Agreement",
+      "description": "A Provider performs services (consulting, implementation, ...) for a Customer under statements of work.",
+      "template": "templates/psa.md",
+      "coverTitle": "Key Terms",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate",
+        { "key": "sowTerm", "label": "SOW Term", "kind": "text", "required": true, "description": "How long the statement of work lasts." },
+        { "key": "deliverables", "label": "Deliverables", "kind": "longtext", "required": true, "refs": ["Deliverable"] },
+        { "key": "fees", "label": "Fees", "kind": "text", "required": true },
+        { "key": "paymentPeriod", "label": "Payment Period", "kind": "text", "required": true, "description": "e.g. 'within 30 days of invoice'." },
+        { "key": "rejectionPeriod", "label": "Rejection Period", "kind": "text", "required": true, "description": "Time the Customer has to reject a deliverable." },
+        { "key": "resubmissionPeriod", "label": "Resubmission Period", "kind": "text", "required": true },
+        { "key": "customerObligations", "label": "Customer Obligations", "kind": "longtext", "required": false },
+        { "key": "timeOfAssignment", "label": "Time of Assignment", "kind": "text", "required": true, "description": "When deliverable IP passes to the Customer, e.g. 'upon payment'." },
+        { "key": "customerPolicies", "label": "Customer Policies", "kind": "longtext", "required": false },
+        { "key": "insuranceMinimums", "label": "Insurance Minimums", "kind": "longtext", "required": false },
+        "dpa", "securityPolicy", "additionalWarranties", "generalCapAmount", "increasedClaims", "increasedCapAmount",
+        "unlimitedClaims", "providerCoveredClaims", "customerCoveredClaims", "governingLaw", "chosenCourts"
+      ]
+    },
+    {
+      "id": "pilot",
+      "name": "Pilot Agreement",
+      "shortName": "Pilot Agreement",
+      "description": "A Customer trials a Provider's product for a limited pilot period.",
+      "template": "templates/Pilot-Agreement.md",
+      "coverTitle": "Order Form",
+      "parties": ["Provider", "Customer"],
+      "fields": [
+        "effectiveDate",
+        { "key": "pilotPeriod", "label": "Pilot Period", "kind": "text", "required": true, "description": "e.g. '90 days from the Effective Date'." },
+        "generalCapAmount", "governingLaw", "chosenCourts"
+      ]
+    },
+    {
+      "id": "design-partner",
+      "name": "Design Partner Agreement",
+      "shortName": "Design Partner Agreement",
+      "description": "Early product access for a Partner in exchange for feedback.",
+      "template": "templates/design-partner-agreement.md",
+      "coverTitle": "Key Terms",
+      "parties": ["Provider", "Partner"],
+      "fields": [
+        "effectiveDate",
+        { "key": "term", "label": "Term", "kind": "text", "required": true, "description": "How long the program lasts." },
+        { "key": "program", "label": "Program", "kind": "longtext", "required": true, "description": "What the design partner program involves." },
+        { "key": "fees", "label": "Fees", "kind": "text", "required": true, "description": "Fees, or 'None'." },
+        "governingLaw", "chosenCourts"
+      ]
+    },
+    {
+      "id": "partnership",
+      "name": "Partnership Agreement",
+      "shortName": "Partnership Agreement",
+      "description": "A Company and a Partner collaborate, e.g. reselling, referrals or co-marketing.",
+      "template": "templates/Partnership-Agreement.md",
+      "coverTitle": "Key Terms",
+      "parties": ["Company", "Partner"],
+      "fields": [
+        "effectiveDate",
+        { "key": "endDate", "label": "End Date", "kind": "text", "required": true },
+        { "key": "obligations", "label": "Obligations", "kind": "longtext", "required": true, "description": "What each party will do." },
+        { "key": "territory", "label": "Territory", "kind": "text", "required": true },
+        { "key": "paymentProcess", "label": "Payment Process", "kind": "longtext", "required": true },
+        { "key": "paymentSchedule", "label": "Payment Schedule", "kind": "text", "required": true },
+        { "key": "brandGuidelines", "label": "Brand Guidelines", "kind": "text", "required": false },
+        { "key": "companyCoveredClaims", "label": "Company Covered Claims", "kind": "longtext", "required": false },
+        { "key": "partnerCoveredClaims", "label": "Partner Covered Claims", "kind": "longtext", "required": false },
+        "dpa", "additionalWarranties", "generalCapAmount", "increasedClaims", "increasedCapAmount", "unlimitedClaims",
+        "governingLaw", "chosenCourts"
+      ]
+    }
+  ]
+}

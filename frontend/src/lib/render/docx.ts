@@ -13,7 +13,7 @@ import {
   WidthType,
   type ParagraphChild,
 } from "docx";
-import type { Block, NdaDocumentModel, SectionContent } from "../document";
+import type { Block, DocumentModel, SectionContent } from "../document";
 import type { Run } from "../terms";
 
 const INK = "1F2A44";
@@ -117,8 +117,7 @@ function blockToDocx(block: Block): (Paragraph | Table)[] {
         tableHeader: true,
         children: [
           cell([], { width: 26 }),
-          cell([new TextRun({ text: "PARTY 1", bold: true, font: FONT })], { width: 37, header: true }),
-          cell([new TextRun({ text: "PARTY 2", bold: true, font: FONT })], { width: 37, header: true }),
+          ...block.parties.map((p) => cell([new TextRun({ text: p, bold: true, font: FONT })], { width: 37, header: true })),
         ],
       });
       const rows = block.rows.map(
@@ -150,18 +149,18 @@ function blockToDocx(block: Block): (Paragraph | Table)[] {
       return [
         new Paragraph({
           alignment: AlignmentType.JUSTIFIED,
-          indent: { left: 360, hanging: 360 },
+          indent: { left: 520 + block.level * 360, hanging: 520 },
           spacing: { after: 140 },
-          children: [new TextRun({ text: `${block.number}.\t`, font: FONT }), ...runsToChildren(block.runs)],
+          children: [new TextRun({ text: `${block.label}\t`, font: FONT }), ...runsToChildren(block.runs)],
         }),
       ];
   }
 }
 
-export function buildDocx(doc: NdaDocumentModel): Document {
+export function buildDocx(doc: DocumentModel): Document {
   return new Document({
     creator: "Prelegal",
-    title: "Mutual Non-Disclosure Agreement",
+    title: doc.title,
     styles: { default: { document: { run: { font: FONT, size: 21 } } } },
     sections: [
       {
@@ -177,6 +176,6 @@ export function buildDocx(doc: NdaDocumentModel): Document {
   });
 }
 
-export function renderDocx(doc: NdaDocumentModel): Promise<Blob> {
+export function renderDocx(doc: DocumentModel): Promise<Blob> {
   return Packer.toBlob(buildDocx(doc));
 }

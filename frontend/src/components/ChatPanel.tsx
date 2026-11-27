@@ -2,27 +2,30 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ApiError } from "@/lib/api";
-import { applyUpdates, sendChat, type ChatMessage } from "@/lib/chat";
+import { sendChat, type ChatMessage, type ChatTurn } from "@/lib/chat";
 import { useChat } from "@/lib/chatStore";
-import type { NdaData } from "@/lib/nda";
+import type { Values } from "@/lib/registry";
 
 type Props = {
-  data: NdaData;
-  onChange: (data: NdaData) => void;
+  documentType: string | null;
+  /** Current field values of the selected document. */
+  values: Values;
+  /** Applies the AI's turn (document choice and field updates); returns the labels of changed fields. */
+  onTurn: (turn: ChatTurn) => string[];
 };
 
-/** Free-form chat with the AI, which fills in the NDA as the user answers. */
-export function ChatPanel({ data, onChange }: Props) {
+/** Free-form chat with the AI, which picks the document and fills it in as the user answers. */
+export function ChatPanel({ documentType, values, onTurn }: Props) {
   const { messages, setMessages } = useChat();
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  // The user may edit fields while the AI is replying: apply its updates to the latest draft.
-  const dataRef = useRef(data);
+  // The user may edit fields while the AI is replying: send and apply against the latest state.
+  const latest = useRef({ documentType, values, onTurn });
   useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
+    latest.current = { documentType, values, onTurn };
+  }, [documentType, values, onTurn]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -32,9 +35,8 @@ export function ChatPanel({ data, onChange }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const turn = await sendChat(history, dataRef.current);
-      const { data: next, changed } = applyUpdates(dataRef.current, turn.updates);
-      if (changed.length) onChange(next);
+      const turn = await sendChat(history, latest.current.documentType, latest.current.values);
+      const changed = latest.current.onTurn(turn);
       setMessages([...history, { role: "assistant", content: turn.reply, ...(changed.length && { updated: changed }) }]);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "The AI assistant couldn’t reply. Please try again.");

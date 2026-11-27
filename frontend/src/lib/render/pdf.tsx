@@ -1,5 +1,5 @@
 import { Document, Link, Page, StyleSheet, Text, View, pdf } from "@react-pdf/renderer";
-import type { Block, NdaDocumentModel, SectionContent } from "../document";
+import type { Block, DocumentModel, SectionContent } from "../document";
 import type { Run } from "../terms";
 
 // Uses the built-in Times fonts, so no font files need to be fetched.
@@ -44,7 +44,7 @@ const s = StyleSheet.create({
   blankCell: { minHeight: 30 },
   heading: { fontFamily: "Times-Bold", fontSize: 15, textAlign: "center", marginBottom: 12, color: INK },
   clause: { flexDirection: "row", marginBottom: 7, textAlign: "justify" },
-  clauseNumber: { width: 18 },
+  clauseNumber: { width: 26 },
   clauseText: { flex: 1 },
   bold: { fontFamily: "Times-Bold" },
   link: { color: INK, textDecoration: "underline" },
@@ -119,8 +119,8 @@ function PdfBlock({ block }: { block: Block }) {
         <View style={s.table} wrap={false}>
           <View style={s.row}>
             <Text style={[s.cell, s.labelCell]} />
-            <Text style={[s.cell, s.headCell]}>PARTY 1</Text>
-            <Text style={[s.cell, s.headCell]}>PARTY 2</Text>
+            <Text style={[s.cell, s.headCell]}>{block.parties[0]}</Text>
+            <Text style={[s.cell, s.headCell]}>{block.parties[1]}</Text>
           </View>
           {block.rows.map((r) => (
             <View key={r.label} style={s.row}>
@@ -142,8 +142,8 @@ function PdfBlock({ block }: { block: Block }) {
       );
     case "clause":
       return (
-        <View style={s.clause}>
-          <Text style={s.clauseNumber}>{block.number}.</Text>
+        <View style={[s.clause, { marginLeft: block.level * 14 }]}>
+          <Text style={s.clauseNumber}>{block.label}</Text>
           <Text style={s.clauseText}>
             <Runs runs={block.runs} />
           </Text>
@@ -152,9 +152,9 @@ function PdfBlock({ block }: { block: Block }) {
   }
 }
 
-export function NdaPdf({ doc }: { doc: NdaDocumentModel }) {
+export function DocumentPdf({ doc }: { doc: DocumentModel }) {
   return (
-    <Document title="Mutual Non-Disclosure Agreement" creator="Prelegal" producer="Prelegal">
+    <Document title={doc.title} creator="Prelegal" producer="Prelegal">
       <Page size="LETTER" style={s.page}>
         {doc.blocks.map((b, i) => (
           <PdfBlock key={i} block={b} />
@@ -169,6 +169,6 @@ export function NdaPdf({ doc }: { doc: NdaDocumentModel }) {
   );
 }
 
-export function renderPdf(doc: NdaDocumentModel): Promise<Blob> {
-  return pdf(<NdaPdf doc={doc} />).toBlob();
+export function renderPdf(doc: DocumentModel): Promise<Blob> {
+  return pdf(<DocumentPdf doc={doc} />).toBlob();
 }

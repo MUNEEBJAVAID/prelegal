@@ -66,6 +66,9 @@ npm run build                      # static export to frontend/out/
   - `next.config.ts` sets `output: "export"` and `trailingSlash` for builds, and in `next dev` rewrites `/api` to the backend instead.
   - Export mode rules out PPR, `cacheComponents`, `"use cache"`, server actions, route handlers and dynamic server rendering.
   - Server components may only read files at build time. For example, `lib/standardTerms.ts` reads `../templates/Mutual-NDA.md` relative to `frontend/`.
+- **Document registry:** `documents.json` at the repo root is the single source of truth for supported document types. It defines their parties (each role expands to `<role>.company/.name/.title/.noticeAddress`) and their fields; shared fields live in `commonFields`. The backend (`documents.py`) and the frontend (`lib/registry.ts`, read at build time by `lib/catalog.server.ts`) both expand it, so keep the two in sync. A field's label, plus its `refs` aliases, is the template term it defines. A test asserts that every term each template references resolves to a party or field.
+- **Generic documents:** `parseClauses` (`lib/terms.ts`) parses any template's nested list. `buildGenericDocument` (`lib/genericDocument.ts`) generates the cover page, signature table and Standard Terms, using the same `DocumentModel` the NDA uses, so all renderers work unchanged. The Mutual NDA keeps its own model (`lib/document.ts`, `NdaData`) and maps to flat field values with `ndaToValues`/`ndaFromValues`.
+- **Chat:** `POST /api/chat` takes `{messages, documentType, values}` and returns `{reply, documentType, updates: [{field, value}]}`. `documentType` is restricted to the registry ids, and updates are filtered to the document's fields and kinds. `components/DraftingWorkspace.tsx` (route `/draft/`) applies each turn.
 - **Mutual NDA creator:**
   - One format-neutral document model, `buildNdaDocument()` in `lib/document.ts`, feeds the preview and the PDF, Word and Markdown renderers in `lib/render/`. Change agreement wording there, never in a renderer.
   - The renderers are loaded with dynamic `import()`.
@@ -90,10 +93,13 @@ These are available as Tailwind colours `brand-yellow`, `brand-blue`, `brand-pur
   - The FastAPI backend serves the static frontend.
   - The SQLite `users` table is recreated on every start.
   - **Login is fake.** `POST /api/auth/login` accepts any email and password, and the user is kept in sessionStorage.
-  - `/` is the sign-in page, and `/nda/` is the creator behind `AuthGate`.
+  - `/` is the sign-in page, and the app sits behind `AuthGate` (now at `/draft/`).
   - The start and stop scripts currently run the app locally (pid and logs in `.run/`). **Docker packaging is still to do.**
 - **PL-6:** AI chat for the Mutual NDA.
-  - `POST /api/chat/nda` takes the conversation and the current `NdaData`. It returns `{reply, updates}`, where a null update means "unchanged".
-  - The frontend `applyUpdates` (`lib/chat.ts`) merges the updates through `parseDraft`.
+  - This ticket added the first chat endpoint (`/api/chat/nda`); PL-7 replaced it with `/api/chat`.
   - The left panel has **Chat | Edit fields** tabs. The conversation is saved in localStorage (`lib/chatStore.ts`).
-- Not built yet: real authentication, server-side document persistence, and document types other than the Mutual NDA.
+- **PL-7:** All 11 document types from the catalog.
+  - The AI identifies the document the user needs. For an unsupported document, it explains that and suggests the closest one, then fills the fields in.
+  - `/draft/` has a document picker, Chat | Edit fields tabs (with a generic field form for the 10 non-NDA documents), a live preview, and PDF, Word and Markdown downloads for every document.
+  - Drafts are saved per document in localStorage (`lib/workspaceStore.ts`).
+- Not built yet: real authentication, server-side document persistence, and Docker packaging.

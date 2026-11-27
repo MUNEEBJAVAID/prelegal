@@ -1,5 +1,5 @@
 import { ApiError } from "./api";
-import { parseDraft, type NdaData, type Party } from "./nda";
+import type { Values } from "./registry";
 
 /** A chat bubble. `updated` lists the fields an assistant turn filled in. */
 export type ChatMessage = { role: "user" | "assistant"; content: string; updated?: string[] };
@@ -7,84 +7,33 @@ export type ChatMessage = { role: "user" | "assistant"; content: string; updated
 export const GREETING: ChatMessage = {
   role: "assistant",
   content:
-    "Hi! I’ll help you draft a Mutual NDA. Let’s start with the parties: which two companies are entering into this agreement, and who will sign for each?",
+    "Hi! I’ll help you draft a legal agreement. What do you need? For example a Mutual NDA, a Cloud Service Agreement, a Data Processing Agreement or a Pilot Agreement. Describe your situation and I’ll suggest the right document.",
 };
 
-/** Field changes returned by the AI. `null` means "leave unchanged". */
-type Nullable<T> = { [K in keyof T]: T[K] | null };
-export type NdaUpdates = Partial<Nullable<Omit<NdaData, "party1" | "party2">>> & {
-  party1?: Partial<Nullable<Party>> | null;
-  party2?: Partial<Nullable<Party>> | null;
-};
+export type FieldUpdate = { field: string; value: string };
 
-export type ChatTurn = { reply: string; updates: NdaUpdates };
+/** The AI's turn: its reply, the document being drafted (once agreed) and field changes. */
+export type ChatTurn = { reply: string; documentType: string | null; updates: FieldUpdate[] };
 
 /** The backend caps the history it accepts; older turns are dropped first. */
 export const MAX_HISTORY = 40;
 
-const FIELD_LABELS: Record<Exclude<keyof NdaData, "party1" | "party2">, string> = {
-  purpose: "Purpose",
-  effectiveDate: "Effective date",
-  mndaTermType: "MNDA term",
-  mndaTermYears: "MNDA term",
-  confidentialityType: "Term of confidentiality",
-  confidentialityYears: "Term of confidentiality",
-  governingLaw: "Governing law",
-  jurisdiction: "Jurisdiction",
-  modifications: "Modifications",
-};
-
-const PARTY_LABELS: Record<keyof Party, string> = {
-  company: "company",
-  name: "signer",
-  title: "signer title",
-  noticeAddress: "notice address",
-};
-
-const definedValues = <T extends object>(obj: T | null | undefined): Partial<T> =>
-  Object.fromEntries(Object.entries(obj ?? {}).filter(([, v]) => v !== null && v !== undefined)) as Partial<T>;
-
-/**
- * Applies the AI's updates to the draft. Values are validated the same way as
- * a saved draft (wrong types are ignored, year counts clamped). Returns the new
- * data and human-readable labels of the fields that actually changed.
- */
-export function applyUpdates(data: NdaData, updates: NdaUpdates): { data: NdaData; changed: string[] } {
-  const { party1, party2, ...rest } = updates;
-  const merged = {
-    ...data,
-    ...definedValues(rest),
-    party1: { ...data.party1, ...definedValues(party1) },
-    party2: { ...data.party2, ...definedValues(party2) },
-  };
-  const next = parseDraft(merged, data);
-
-  const changed = new Set<string>();
-  for (const key of Object.keys(FIELD_LABELS) as (keyof typeof FIELD_LABELS)[]) {
-    if (next[key] !== data[key]) changed.add(FIELD_LABELS[key]);
-  }
-  for (const [key, label] of [["party1", "Party 1"], ["party2", "Party 2"]] as const) {
-    for (const field of Object.keys(PARTY_LABELS) as (keyof Party)[]) {
-      if (next[key][field] !== data[key][field]) changed.add(`${label} ${PARTY_LABELS[field]}`);
-    }
-  }
-  return { data: next, changed: [...changed] };
-}
-
-/** Asks the AI for its next turn, given the conversation so far and the current draft. */
+/** Asks the AI for its next turn, given the conversation, the selected document and its values. */
 export async function sendChat(
   messages: ChatMessage[],
-  document: NdaData,
+  documentType: string | null,
+  values: Values,
   fetchImpl: typeof fetch = fetch,
 ): Promise<ChatTurn> {
   let res: Response;
   try {
-    res = await fetchImpl("/api/chat/nda", {
+    res = await fetchImpl("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: messages.slice(-MAX_HISTORY).map(({ role, content }) => ({ role, content })),
-        document,
+        documentType,
+        values,
       }),
     });
   } catch {

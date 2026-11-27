@@ -137,3 +137,25 @@ export function parseDraft(input: unknown, fallback: NdaData = defaultNdaData): 
     party2: party(src.party2, fallback.party2),
   };
 }
+
+/** The draft as flat field values keyed like documents.json ("party1.company", "mndaTermYears", ...). */
+export function ndaToValues(data: NdaData): Record<string, string> {
+  const { party1, party2, ...rest } = data;
+  const values: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rest)) values[k] = String(v);
+  for (const [key, party] of [["party1", party1], ["party2", party2]] as const) {
+    for (const [k, v] of Object.entries(party)) values[`${key}.${k}`] = v;
+  }
+  return values;
+}
+
+/** Rebuilds the draft from flat field values, validated like a saved draft. */
+export function ndaFromValues(values: Record<string, string>, fallback: NdaData): NdaData {
+  const src: Record<string, unknown> = { party1: {}, party2: {} };
+  for (const [key, value] of Object.entries(values)) {
+    const [head, field] = key.split(".");
+    if (field && (head === "party1" || head === "party2")) (src[head] as Record<string, string>)[field] = value;
+    else src[key] = key.endsWith("Years") ? Number(value) : value;
+  }
+  return parseDraft(src, fallback);
+}
