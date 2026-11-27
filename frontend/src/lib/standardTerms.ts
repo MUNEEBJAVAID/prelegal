@@ -7,6 +7,5 @@ import { parseStandardTerms, type StandardTerms } from "./terms";
 const TEMPLATE_PATH = path.join(process.cwd(), "..", "templates", "Mutual-NDA.md");
 
 export async function loadStandardTerms(): Promise<StandardTerms> {
-  "use cache";
   return parseStandardTerms(await readFile(TEMPLATE_PATH, "utf8"));
 }

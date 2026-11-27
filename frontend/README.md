@@ -15,11 +15,15 @@ A Next.js prototype (PL-4) for drafting a [Common Paper Mutual NDA](https://comm
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
+npm run dev     # http://localhost:3000 (proxies /api to the backend on :8000)
 npm test        # Vitest unit tests
-npm run build   # production build
+npm run build   # static export to out/, served by the FastAPI backend
 npm run lint
 ```
+
+`/` is a placeholder sign-in screen (any email and password; the user is kept in sessionStorage)
+and the creator lives at `/nda/` behind `AuthGate`. Run the backend (`cd ../backend && uv run prelegal-backend`)
+for sign-in to work in `next dev`.
 
 ## How it works
 
