@@ -41,6 +41,17 @@ export type Block =
 /** What a Standard Terms reference resolves to: its cover-page value and section. */
 export type RefInfo = { value: string; target?: SectionId };
 
+/** Shown in the app and closes every generated document, in every format. */
+export const DISCLAIMER =
+  "This document was generated with Prelegal from Common Paper standard terms. It is a draft and is subject to legal review: have a qualified lawyer review it before anyone signs it. Prelegal does not provide legal advice.";
+
+/** The closing disclaimer paragraph every document model ends with. */
+export const DISCLAIMER_BLOCK: Block = {
+  type: "paragraph",
+  muted: true,
+  runs: [{ text: "Draft subject to legal review. ", bold: true }, { text: DISCLAIMER }],
+};
+
 export type DocumentModel = {
   title: string;
   blocks: Block[];
@@ -205,6 +216,7 @@ export function buildNdaDocument(data: NdaData, terms: StandardTerms): DocumentM
     ...terms.clauses.map((c): Block => ({ type: "clause", label: `${c.number}.`, level: 0, runs: c.runs })),
   ];
   if (terms.footer.length) blocks.push({ type: "paragraph", muted: true, runs: terms.footer });
+  blocks.push(DISCLAIMER_BLOCK);
 
   const values: Record<TermRef, string> = {
     Purpose: data.purpose.trim(),

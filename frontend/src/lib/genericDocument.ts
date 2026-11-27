@@ -4,7 +4,7 @@
  * cover page from the registry's fields, a signature table, then the
  * template's Standard Terms.
  */
-import { valueRuns, type Block, type DocumentModel, type RefInfo, type SignatureRow } from "./document";
+import { DISCLAIMER_BLOCK, valueRuns, type Block, type DocumentModel, type RefInfo, type SignatureRow } from "./document";
 import { LICENSE_URL, formatDate, type RequiredField } from "./nda";
 import { partyKey, resolveTerm, type DocDef, type FieldDef, type Values } from "./registry";
 import type { ClauseLine, Run } from "./terms";
@@ -117,6 +117,7 @@ export function buildGenericDocument(doc: DocDef, values: Values, clauses: Claus
     },
     { type: "heading", text: "Standard Terms", newPage: true },
     ...clauses.map((c): Block => ({ type: "clause", label: c.label, level: c.level, runs: c.runs })),
+    DISCLAIMER_BLOCK,
   ];
 
   return { title: doc.name, blocks, refs: resolveRefs(doc, values, clauses) };

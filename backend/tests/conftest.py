@@ -21,3 +21,18 @@ def settings(tmp_path: Path) -> Settings:
 def client(settings: Settings) -> Iterator[TestClient]:
     with TestClient(create_app(settings)) as c:  # `with` runs the lifespan (DB init)
         yield c
+
+
+PASSWORD = "correct horse battery"
+
+
+def sign_up(client: TestClient, email: str = "jane@example.com", password: str = PASSWORD):
+    """Registers a user; the client keeps the session cookie."""
+    return client.post("/api/auth/signup", json={"email": email, "password": password})
+
+
+@pytest.fixture
+def user_client(client: TestClient) -> TestClient:
+    """A client signed in as jane@example.com."""
+    assert sign_up(client).status_code == 201
+    return client

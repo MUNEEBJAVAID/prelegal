@@ -3,7 +3,6 @@ import { fileBaseName } from "./download";
 import { applyFieldUpdates } from "./genericDocument";
 import { defaultNdaData, ndaFromValues, ndaToValues } from "./nda";
 import { completeData, docDef } from "./test-fixtures";
-import { parseWorkspace } from "./workspaceStore";
 
 describe("NDA flat values", () => {
   it("round-trips the draft", () => {
@@ -11,7 +10,9 @@ describe("NDA flat values", () => {
   });
 
   it("uses the registry's field keys", () => {
-    const keys = docDef("mutual-nda").fields.map((f) => f.key).sort();
+    const keys = docDef("mutual-nda")
+      .fields.map((f) => f.key)
+      .sort();
     expect(Object.keys(ndaToValues(completeData)).sort()).toEqual(keys);
   });
 
@@ -27,24 +28,6 @@ describe("NDA flat values", () => {
     expect(data.mndaTermYears).toBe(99);
     expect(data.confidentialityType).toBe("perpetuity");
     expect(changed).toEqual(["Party 1 company", "MNDA Term years", "Term of Confidentiality type"]);
-  });
-});
-
-describe("parseWorkspace", () => {
-  it("keeps a valid workspace", () => {
-    const ws = { documentType: "csa", values: { csa: { "provider.company": "Acme" } } };
-    expect(parseWorkspace(ws)).toEqual(ws);
-  });
-
-  it("drops invalid entries", () => {
-    expect(parseWorkspace({ documentType: 3, values: { csa: { a: 1, b: "ok" }, bad: null } })).toEqual({
-      documentType: null,
-      values: { csa: { b: "ok" } },
-    });
-  });
-
-  it.each([null, "x", []])("falls back to an empty workspace for %j", (input) => {
-    expect(parseWorkspace(input)).toEqual({ documentType: null, values: {} });
   });
 });
 

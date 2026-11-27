@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { LoginForm } from "@/components/LoginForm";
+import { AuthForm } from "@/components/AuthForm";
 
 export const metadata: Metadata = { title: "Sign in · Prelegal" };
 
-export default function LoginPage() {
-  return <LoginForm />;
+export default function SignInPage() {
+  return <AuthForm mode="signin" />;
 }
