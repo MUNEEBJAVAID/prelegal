@@ -99,6 +99,52 @@ def test_selects_document_and_applies_valid_updates(settings: Settings) -> None:
     ]
 
 
+class SequenceLLM(FakeLLM):
+    """Returns a different canned answer per call (an Exception entry is raised)."""
+
+    def __init__(self, *answers: dict[str, Any] | Exception) -> None:
+        super().__init__(answers[0])
+        self.answers = list(answers)
+
+    def __call__(self, messages, schema):
+        self.answer = self.answers[min(len(self.calls), len(self.answers) - 1)]
+        return super().__call__(messages, schema)
+
+
+def test_choosing_a_document_asks_again_with_its_fields(settings: Settings) -> None:
+    llm = SequenceLLM(
+        turn("A Cloud Service Agreement fits.", "csa"),
+        turn("I've added both companies.", "csa", [{"field": "provider.company", "value": "Acme"}]),
+    )
+    with TestClient(create_app(settings, llm=llm)) as c:
+        body = post(c, "Acme sells SaaS to Beta").json()
+
+    assert len(llm.calls) == 2
+    assert "No document is selected yet." in llm.calls[0][0][0]["content"]
+    assert "Current document: Cloud Service Agreement (csa)" in llm.calls[1][0][0]["content"]
+    assert "has just been selected" in llm.calls[1][0][0]["content"]
+    assert llm.calls[1][0][1:] == llm.calls[0][0][1:]
+    assert body == {
+        "reply": "I've added both companies.",
+        "documentType": "csa",
+        "updates": [{"field": "provider.company", "value": "Acme"}],
+    }
+
+
+def test_keeps_first_answer_if_second_call_fails(settings: Settings) -> None:
+    llm = SequenceLLM(turn("A Pilot Agreement fits.", "pilot"), LLMError("down"))
+    with TestClient(create_app(settings, llm=llm)) as c:
+        body = post(c, "We want to trial a product").json()
+    assert body == {"reply": "A Pilot Agreement fits.", "documentType": "pilot", "updates": []}
+
+
+def test_no_second_call_when_document_is_unchanged(settings: Settings) -> None:
+    llm = SequenceLLM(turn("OK", "sla"))
+    with TestClient(create_app(settings, llm=llm)) as c:
+        post(c, documentType="sla")
+    assert len(llm.calls) == 1
+
+
 def test_validates_choice_and_number_fields(settings: Settings) -> None:
     answer = turn(
         updates=[

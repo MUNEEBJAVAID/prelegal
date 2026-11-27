@@ -102,4 +102,10 @@ These are available as Tailwind colours `brand-yellow`, `brand-blue`, `brand-pur
   - The AI identifies the document the user needs. For an unsupported document, it explains that and suggests the closest one, then fills the fields in.
   - `/draft/` has a document picker, Chat | Edit fields tabs (with a generic field form for the 10 non-NDA documents), a live preview, and PDF, Word and Markdown downloads for every document.
   - Drafts are saved per document in localStorage (`lib/workspaceStore.ts`).
+- **UI polish:**
+  - Starter prompts in the empty chat, and a progress meter for required details.
+  - Picking a document by hand adds an assistant message saying what happens next.
+  - Focus returns to the chat input after each reply.
+  - The login form validates in the browser.
+  - When the AI first chooses a document, the backend asks it a second time with that document's fields (`just_selected`), so details the user already gave are filled in the same turn.
 - Not built yet: real authentication, server-side document persistence, and Docker packaging.
