@@ -1,20 +1,23 @@
-"""AI chat that drafts a Mutual NDA.
+"""AI drafting chat for every supported document type.
 
-The frontend sends the conversation plus the document's current field values.
-The model replies conversationally and returns field updates as Structured
-Outputs; the frontend applies the non-null updates to the draft.
+The frontend sends the conversation, the selected document type (if any) and
+that document's current field values. The model replies conversationally,
+picks the document type once the user's need is clear, and returns field
+updates as Structured Outputs. Updates are filtered to the document's fields.
 """
 
 import json
 from datetime import date
+from functools import cache
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from .documents import DocumentType, FieldDef, Registry, registry
 from .llm import LLMError
 
-router = APIRouter(prefix="/api/chat", tags=["chat"])
+router = APIRouter(prefix="/api", tags=["chat"])
 
 MAX_MESSAGES = 60
 
@@ -24,32 +27,24 @@ class Strict(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-class PartyUpdate(Strict):
-    company: str | None
-    name: str | None = Field(description="Name of the person signing")
-    title: str | None = Field(description="Job title of the person signing")
-    noticeAddress: str | None = Field(description="Email or postal address for legal notices")
+class FieldUpdate(Strict):
+    field: str = Field(description="A field key of the current document, e.g. 'provider.company'")
+    value: str = Field(description="The new value as text (dates YYYY-MM-DD, numbers as digits)")
 
 
-class NdaUpdates(Strict):
-    """Every field is required but nullable: null means "leave unchanged"."""
-
-    purpose: str | None = Field(description="How Confidential Information may be used")
-    effectiveDate: str | None = Field(description="ISO date, YYYY-MM-DD")
-    mndaTermType: Literal["expires", "until-terminated"] | None
-    mndaTermYears: int | None = Field(description="1-99; used when mndaTermType is 'expires'")
-    confidentialityType: Literal["years", "perpetuity"] | None
-    confidentialityYears: int | None = Field(description="1-99; used when confidentialityType is 'years'")
-    governingLaw: str | None = Field(description="Governing law, e.g. a US state such as 'Delaware'")
-    jurisdiction: str | None = Field(description="Courts with jurisdiction, e.g. 'courts located in New Castle, DE'")
-    modifications: str | None = Field(description="Changes to the Standard Terms; empty string for none")
-    party1: PartyUpdate | None
-    party2: PartyUpdate | None
-
-
-class NdaChatTurn(Strict):
-    reply: str = Field(description="Your next chat message to the user (plain text, concise)")
-    updates: NdaUpdates
+@cache
+def turn_model(ids: tuple[str, ...]) -> type[Strict]:
+    """The model's answer schema. documentType is constrained to the supported ids."""
+    return create_model(
+        "ChatTurn",
+        __base__=Strict,
+        reply=(str, Field(description="Your next chat message to the user (plain text, concise)")),
+        documentType=(
+            Literal[ids] | None,  # type: ignore[valid-type]
+            Field(description="The document being drafted, once agreed with the user; otherwise null"),
+        ),
+        updates=(list[FieldUpdate], Field(description="Only the fields that change in this turn")),
+    )
 
 
 class ChatMessage(BaseModel):
@@ -57,50 +52,107 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
 
 
-class NdaChatRequest(BaseModel):
+class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=MAX_MESSAGES)
-    document: dict[str, Any] = Field(description="The draft's current field values (NdaData)")
+    documentType: str | None = None
+    values: dict[str, str] = Field(default_factory=dict, max_length=200)
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    documentType: str | None
+    updates: list[FieldUpdate]
 
 
 SYSTEM_PROMPT = """\
-You are Prelegal's drafting assistant. You help the user complete a Common Paper \
-Mutual Non-Disclosure Agreement (MNDA) through a friendly, efficient conversation.
+You are Prelegal's drafting assistant. You help the user pick the right legal document and \
+fill it in through a friendly, efficient conversation. Documents are based on Common Paper \
+standard agreements: the Standard Terms are fixed; you fill in the cover page fields.
 
-The MNDA has a Cover Page with these fields (the Standard Terms are fixed and can't be edited):
-- party1 / party2: each party's company, signer name, signer title and notice address.
-- purpose: how Confidential Information may be used.
-- effectiveDate: the date the MNDA starts.
-- mndaTermType + mndaTermYears: the MNDA expires after N years, or continues until terminated.
-- confidentialityType + confidentialityYears: confidential information is protected for N years \
-(trade secrets for as long as they remain trade secrets), or in perpetuity.
-- governingLaw (a state) and jurisdiction (which courts).
-- modifications: optional changes to the Standard Terms.
+Supported documents (id: name - when to use it):
+{catalog}
 
-How to behave:
-- Ask about missing information a topic or two at a time, starting with the parties. \
-Keep replies short; don't list every field at once.
-- Fill fields only from what the user has said or clearly confirmed. Never invent names, \
-addresses or dates. If something is ambiguous, ask.
-- In `updates`, set only fields that change in this turn; use null for everything else. \
-For party1/party2, use null for the whole party when nothing about it changes.
-- Dates are YYYY-MM-DD. Today is {today}. Year counts are whole numbers from 1 to 99.
-- Sensible defaults already in the draft (such as 1-year terms) can be confirmed with the user \
-rather than asked about from scratch.
+Choosing the document:
+- If no document is selected yet, find out what the user needs. When it clearly matches a \
+supported document, confirm it briefly and set documentType to its id.
+- If the user wants a document that isn't supported (for example an employment contract, a lease \
+or a will), explain that Prelegal can't generate that document yet, suggest the closest supported \
+document and why it might fit, and set documentType only once they agree. If nothing is close, say so.
+- Don't switch away from the current document unless the user asks to.
+
+Filling in fields:
+- Ask about missing information a topic or two at a time, starting with the parties. Keep replies \
+short; don't list every field at once. Required fields come first; offer optional ones briefly.
+- Fill fields only from what the user has said or clearly confirmed, including earlier in the \
+conversation. Never invent names, addresses, dates or amounts. If something is ambiguous, ask.
+- In `updates`, include only fields of the current document that change in this turn, using \
+the exact field keys listed below. Dates are YYYY-MM-DD (today is {today}); numbers are digits; \
+choice fields take one of the listed options.
 - When every required field is filled, say so briefly and tell the user they can review the \
-preview and download it as PDF, Word or Markdown from the top bar.
+preview and download the document as PDF, Word or Markdown from the top bar.
 - You explain what terms mean but don't give legal advice; suggest a lawyer for that.
-- Only the Mutual NDA is supported for now. If the user asks for another document, say so politely.
 
-The draft's current values (JSON):
-{document}
-"""
+{current}"""
 
 
-@router.post("/nda")
-def nda_chat(body: NdaChatRequest, request: Request) -> NdaChatTurn:
-    system = SYSTEM_PROMPT.format(today=date.today().isoformat(), document=json.dumps(body.document, indent=2))
+def describe_field(f: FieldDef, value: str) -> str:
+    parts = [f"- {f.key} ({f.label}; {f.kind}{', required' if f.required else ', optional'})"]
+    if f.options:
+        parts.append(f"options: {' | '.join(f.options)}")
+    if f.description:
+        parts.append(f.description)
+    parts.append(f"current value: {json.dumps(value) if value else '(empty)'}")
+    return " - ".join(parts)
+
+
+def build_system_prompt(reg: Registry, doc: DocumentType | None, values: dict[str, str]) -> str:
+    catalog = "\n".join(f"- {d.id}: {d.name} - {d.description}" for d in reg.documents)
+    if doc:
+        fields = "\n".join(describe_field(f, values.get(f.key, "")) for f in doc.fields)
+        current = f"Current document: {doc.name} ({doc.id}). Its fields:\n{fields}"
+    else:
+        current = "No document is selected yet."
+    return SYSTEM_PROMPT.format(catalog=catalog, today=date.today().isoformat(), current=current)
+
+
+def valid_updates(doc: DocumentType | None, updates: list[FieldUpdate]) -> list[FieldUpdate]:
+    """Drops updates for unknown fields and values that don't fit the field's kind."""
+    if not doc:
+        return []
+    fields = {f.key: f for f in doc.fields}
+    result = []
+    for u in updates:
+        f = fields.get(u.field)
+        value = u.value.strip()
+        if not f:
+            continue
+        if f.kind == "choice" and value not in f.options:
+            continue
+        if f.kind == "number" and not value.isdigit():
+            continue
+        if f.kind == "date" and value:
+            try:
+                date.fromisoformat(value)
+            except ValueError:
+                continue
+        result.append(FieldUpdate(field=u.field, value=value))
+    return result
+
+
+@router.post("/chat")
+def chat(body: ChatRequest, request: Request) -> ChatResponse:
+    reg = registry()
+    current = reg.get(body.documentType)
+    system = build_system_prompt(reg, current, body.values)
     messages = [{"role": "system", "content": system}, *(m.model_dump() for m in body.messages)]
     try:
-        return request.app.state.llm(messages, NdaChatTurn)
+        turn: Any = request.app.state.llm(messages, turn_model(tuple(reg.ids)))
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
+
+    doc = reg.get(turn.documentType) or current
+    return ChatResponse(
+        reply=turn.reply,
+        documentType=doc.id if doc else None,
+        updates=valid_updates(doc, turn.updates),
+    )

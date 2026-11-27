@@ -1,7 +1,7 @@
 /**
- * Format-neutral model of the completed Mutual NDA. Every output (on-screen
- * preview, PDF, Word, Markdown) renders these blocks, so the agreement's
- * wording is defined in exactly one place.
+ * Format-neutral document model. Every output (on-screen preview, PDF, Word,
+ * Markdown) renders these blocks, so an agreement's wording is defined in
+ * exactly one place: buildNdaDocument here, buildGenericDocument for the rest.
  */
 import {
   LICENSE_URL,
@@ -14,13 +14,7 @@ import {
 } from "./nda";
 import type { Run, StandardTerms, TermRef } from "./terms";
 
-export type SectionId =
-  | "purpose"
-  | "effective-date"
-  | "mnda-term"
-  | "confidentiality"
-  | "governing-law"
-  | "modifications";
+export type SectionId = string;
 
 export type OptionItem = { checked: boolean; runs: Run[] };
 
@@ -39,14 +33,19 @@ export type Block =
   | { type: "title"; text: string }
   | { type: "paragraph"; runs: Run[]; muted?: boolean }
   | { type: "section"; id: SectionId; title: string; hint?: string; content: SectionContent[] }
-  | { type: "signatures"; rows: SignatureRow[] }
+  | { type: "signatures"; parties: [string, string]; rows: SignatureRow[] }
   | { type: "heading"; text: string; newPage?: boolean }
-  | { type: "clause"; number: number; runs: Run[] };
+  /** A Standard Terms clause: level 0 "1.", level 1 "1.1", level 2 "(a)", level 3 "(i)". */
+  | { type: "clause"; label: string; level: number; runs: Run[] };
 
-export type NdaDocumentModel = {
+/** What a Standard Terms reference resolves to: its cover-page value and section. */
+export type RefInfo = { value: string; target?: SectionId };
+
+export type DocumentModel = {
+  title: string;
   blocks: Block[];
-  /** The value each Cover Page term currently resolves to ("" when blank). */
-  refValues: Record<TermRef, string>;
+  /** Keyed by the referenced term's text, e.g. "Governing Law". */
+  refs: Record<string, RefInfo>;
 };
 
 /** Which Cover Page section each Standard Terms reference points at. */
@@ -92,7 +91,7 @@ function signatureRows(p1: Party, p2: Party): SignatureRow[] {
   return [blankRow("Signature"), ...fields, blankRow("Date")];
 }
 
-export function buildNdaDocument(data: NdaData, terms: StandardTerms): NdaDocumentModel {
+export function buildNdaDocument(data: NdaData, terms: StandardTerms): DocumentModel {
   const expires = data.mndaTermType === "expires";
   const forYears = data.confidentialityType === "years";
 
@@ -192,7 +191,7 @@ export function buildNdaDocument(data: NdaData, terms: StandardTerms): NdaDocume
         "By signing this Cover Page, each party agrees to enter into this MNDA as of the Effective Date.",
       ),
     },
-    { type: "signatures", rows: signatureRows(data.party1, data.party2) },
+    { type: "signatures", parties: ["PARTY 1", "PARTY 2"], rows: signatureRows(data.party1, data.party2) },
     {
       type: "paragraph",
       muted: true,
@@ -203,19 +202,20 @@ export function buildNdaDocument(data: NdaData, terms: StandardTerms): NdaDocume
       ],
     },
     { type: "heading", text: "Standard Terms", newPage: true },
-    ...terms.clauses.map((c): Block => ({ type: "clause", number: c.number, runs: c.runs })),
+    ...terms.clauses.map((c): Block => ({ type: "clause", label: `${c.number}.`, level: 0, runs: c.runs })),
   ];
   if (terms.footer.length) blocks.push({ type: "paragraph", muted: true, runs: terms.footer });
 
-  return {
-    blocks,
-    refValues: {
-      Purpose: data.purpose.trim(),
-      "Effective Date": formatDate(data.effectiveDate),
-      "MNDA Term": mndaTermText(data),
-      "Term of Confidentiality": confidentialityText(data),
-      "Governing Law": data.governingLaw.trim(),
-      Jurisdiction: data.jurisdiction.trim(),
-    },
+  const values: Record<TermRef, string> = {
+    Purpose: data.purpose.trim(),
+    "Effective Date": formatDate(data.effectiveDate),
+    "MNDA Term": mndaTermText(data),
+    "Term of Confidentiality": confidentialityText(data),
+    "Governing Law": data.governingLaw.trim(),
+    Jurisdiction: data.jurisdiction.trim(),
   };
+  const refs = Object.fromEntries(
+    (Object.keys(values) as TermRef[]).map((ref) => [ref, { value: values[ref], target: REF_SECTION[ref] }]),
+  );
+  return { title: "Mutual Non-Disclosure Agreement", blocks, refs };
 }

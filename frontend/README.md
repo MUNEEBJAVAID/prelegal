@@ -1,17 +1,11 @@
-# Prelegal frontend — Mutual NDA Creator
+# Prelegal frontend
 
-A Next.js prototype (PL-4) for drafting a [Common Paper Mutual NDA](https://commonpaper.com/standards/mutual-nda/1.0).
+Next.js app (static export, served by the FastAPI backend) for drafting Common Paper agreements.
 
-- **Chat** with the AI drafting assistant (PL-6): it asks about the parties and terms and fills in
-  the NDA from your answers, noting which fields each reply updated. The conversation is saved in this browser.
-- Or use **Edit fields** to fill in the key details (parties, purpose, effective date, terms, governing law)
-  directly, in five numbered steps. A progress meter shows how many required details are complete.
-- The completed Mutual NDA — cover page plus Standard Terms — updates live beside the form
-  (on phones, switch between **Draft** and **Preview** tabs). Hover a Standard Terms reference
-  such as *Governing Law* to see the value you entered; click it to jump to that cover-page section.
-- Download as **PDF**, **Word (.docx)** or **Markdown**. If required details are blank you're asked
-  to fill them in first, or you can download anyway with placeholders.
-- Your draft is saved in this browser (localStorage), so a refresh doesn't lose your work.
+- `/` is a placeholder sign-in screen. It accepts any email and password, and the user is kept in sessionStorage.
+- `/draft/` is the drafting workspace. **Chat** with the AI assistant, which works out which of the 11 supported documents you need (or suggests the closest one) and fills it in from your answers. You can also pick a document and use **Edit fields**.
+- The completed document (cover page plus Standard Terms) updates live beside the chat. Hover a Standard Terms reference such as *Governing Law* to see its value, and click it to jump to the cover page.
+- Download as **PDF**, **Word (.docx)** or **Markdown**. Drafts and the conversation are saved in this browser.
 
 ## Development
 
@@ -23,38 +17,33 @@ npm run build   # static export to out/, served by the FastAPI backend
 npm run lint
 ```
 
-`/` is a placeholder sign-in screen (any email and password; the user is kept in sessionStorage)
-and the creator lives at `/nda/` behind `AuthGate`. Run the backend (`cd ../backend && uv run prelegal-backend`)
-for sign-in to work in `next dev`.
+Run the backend (`cd ../backend && uv run prelegal-backend`) for sign-in and chat to work in `next dev`.
 
 ## How it works
 
-The Standard Terms are read at build time from `../templates/Mutual-NDA.md`, so the repository
-template stays the single source of truth.
+The templates (`../templates/*.md`) and the document registry (`../documents.json`) are read at build
+time, so the repository stays the single source of truth.
 
 Every output is produced from one format-neutral **document model**:
 
 ```
-NdaData (form) + StandardTerms (template)
-        └─ buildNdaDocument() ──► blocks ──┬─ DocumentPreview (React, on screen)
-                                           ├─ render/pdf.tsx   (@react-pdf/renderer)
-                                           ├─ render/docx.ts   (docx)
-                                           └─ render/markdown.ts
+Mutual NDA:   NdaData + StandardTerms ──► buildNdaDocument()     ─┐
+Others:       values + registry + clauses ─► buildGenericDocument() ─┴► blocks ──┬─ DocumentPreview
+                                                                                   ├─ render/pdf.tsx
+                                                                                   ├─ render/docx.ts
+                                                                                   └─ render/markdown.ts
 ```
 
 The PDF and Word libraries are loaded only when a download is requested.
 
 | Path | Purpose |
 | --- | --- |
-| `src/app/page.tsx` | Loads the Standard Terms and renders the creator |
-| `src/components/NdaCreator.tsx` | Page shell: header, downloads, mobile tabs, missing-fields flow |
-| `src/components/NdaForm.tsx` | Key-information form with progress and required-field flags |
-| `src/components/DocumentPreview.tsx` | On-screen rendering of the document model |
-| `src/components/MissingFieldsDialog.tsx` | Confirmation before downloading an incomplete NDA |
-| `src/lib/nda.ts` | Form data model, defaults, required fields, draft parsing |
-| `src/lib/terms.ts` | Pure parser for the Standard Terms template |
-| `src/lib/document.ts` | Format-neutral document model (`buildNdaDocument`) |
+| `src/app/draft/page.tsx` | Loads the catalog (registry and parsed templates) and renders the workspace |
+| `src/components/DraftingWorkspace.tsx` | Header, downloads, Chat/Edit fields tabs, preview or document picker |
+| `src/components/ChatPanel.tsx` | AI chat; turns pick the document and update fields |
+| `src/components/NdaForm.tsx`, `GenericForm.tsx` | Direct field editing (Mutual NDA / other documents) |
+| `src/lib/registry.ts`, `catalog.server.ts` | Document registry types and the build-time loader |
+| `src/lib/terms.ts` | Template parsers (`parseStandardTerms` for the NDA, `parseClauses` for the rest) |
+| `src/lib/document.ts`, `genericDocument.ts` | Document model builders |
 | `src/lib/render/*` | PDF, Word and Markdown renderers |
-| `src/lib/draftStore.ts` | localStorage-backed draft (hydration-safe) |
-| `src/lib/download.ts` | File naming, lazy rendering and saving |
-| `src/lib/standardTerms.ts` | Server-only template loader |
+| `src/lib/draftStore.ts`, `workspaceStore.ts`, `chatStore.ts` | localStorage-backed state (hydration-safe) |

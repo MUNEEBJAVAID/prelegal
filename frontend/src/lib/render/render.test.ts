@@ -7,7 +7,7 @@ import { defaultNdaData } from "../nda";
 import { completeData, terms } from "../test-fixtures";
 import { buildDocx } from "./docx";
 import { renderMarkdown } from "./markdown";
-import { NdaPdf } from "./pdf";
+import { DocumentPdf } from "./pdf";
 
 const doc = buildNdaDocument(completeData, terms);
 
@@ -45,7 +45,7 @@ describe("binary renderers", () => {
   });
 
   it("produces a PDF", async () => {
-    const buf = await renderToBuffer(createElement(NdaPdf, { doc }) as never);
+    const buf = await renderToBuffer(createElement(DocumentPdf, { doc }) as never);
     expect(buf.subarray(0, 5).toString()).toBe("%PDF-");
   }, 30_000);
 });

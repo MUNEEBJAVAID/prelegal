@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { ApiError, login } from "@/lib/api";
 import { signIn, useSession } from "@/lib/session";
 
-const APP_PATH = "/nda/";
+const APP_PATH = "/draft/";
 
 /** Placeholder sign-in screen: any email and password are accepted. */
 export function LoginForm() {

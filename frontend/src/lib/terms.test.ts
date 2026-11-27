@@ -19,8 +19,20 @@ describe("parseInline", () => {
     ]);
   });
 
-  it("keeps unknown references as plain text", () => {
-    expect(parseInline('<span class="coverpage_link">Other</span>')).toEqual([{ text: "Other" }]);
+  it("parses every kind of template span", () => {
+    expect(
+      parseInline(
+        '<span class="header_3" id="1.1">Access.</span> The <span class="orderform_link">Subscription Period</span> of <span class="keyterms_link" id="2">Customer’s</span> <span id="13.31">**"User"**</span>',
+      ),
+    ).toEqual([
+      { text: "Access.", bold: true },
+      { text: " The " },
+      { text: "Subscription Period", ref: "Subscription Period" },
+      { text: " of " },
+      { text: "Customer’s", ref: "Customer’s" },
+      { text: " " },
+      { text: '"User"', bold: true },
+    ]);
   });
 });
 

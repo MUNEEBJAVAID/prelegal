@@ -1,9 +1,11 @@
-import { REF_SECTION, type Block, type NdaDocumentModel, type SectionContent } from "@/lib/document";
+import type { Block, DocumentModel, SectionContent } from "@/lib/document";
 import type { Run } from "@/lib/terms";
 
 const anchor = (id: string) => `cover-${id}`;
 
-function Runs({ runs, refValues }: { runs: Run[]; refValues?: NdaDocumentModel["refValues"] }) {
+type Refs = DocumentModel["refs"];
+
+function Runs({ runs, refs }: { runs: Run[]; refs?: Refs }) {
   return runs.map((r, i) => {
     if (r.href)
       return (
@@ -11,12 +13,13 @@ function Runs({ runs, refValues }: { runs: Run[]; refValues?: NdaDocumentModel["
           {r.text}
         </a>
       );
-    if (r.ref && refValues)
+    const ref = r.ref ? refs?.[r.ref] : undefined;
+    if (ref)
       return (
         <a
           key={i}
-          href={`#${anchor(REF_SECTION[r.ref])}`}
-          data-value={refValues[r.ref] || "Not filled in yet"}
+          href={ref.target ? `#${anchor(ref.target)}` : undefined}
+          data-value={ref.value || "Not filled in yet"}
           className="term-ref rounded-sm font-semibold text-ink underline decoration-ink/30 decoration-dotted underline-offset-2 hover:decoration-ink focus-visible:outline-2 focus-visible:outline-ink"
         >
           {r.text}
@@ -62,7 +65,7 @@ function Content({ content }: { content: SectionContent }) {
   );
 }
 
-function PreviewBlock({ block, refValues }: { block: Block; refValues: NdaDocumentModel["refValues"] }) {
+function PreviewBlock({ block, refs }: { block: Block; refs: Refs }) {
   switch (block.type) {
     case "title":
       return <h2 className="mb-5 text-center text-[1.65rem] font-semibold tracking-tight text-ink">{block.text}</h2>;
@@ -91,7 +94,7 @@ function PreviewBlock({ block, refValues }: { block: Block; refValues: NdaDocume
             <thead>
               <tr>
                 <th className="w-[26%]" />
-                {["PARTY 1", "PARTY 2"].map((p) => (
+                {block.parties.map((p) => (
                   <th key={p} className="border border-line-strong bg-panel p-2 font-sans text-[0.7rem] tracking-[0.14em] text-ink">
                     {p}
                   </th>
@@ -121,10 +124,13 @@ function PreviewBlock({ block, refValues }: { block: Block; refValues: NdaDocume
       );
     case "clause":
       return (
-        <p className="mb-3 flex gap-2 text-justify text-[0.9rem] hyphens-auto">
-          <span className="w-5 shrink-0 tabular-nums text-muted">{block.number}.</span>
+        <p
+          className={`flex gap-2 text-justify text-[0.9rem] hyphens-auto ${block.level === 0 && block.runs[0]?.bold ? "mt-5 mb-2" : "mb-3"}`}
+          style={{ marginLeft: `${block.level * 1.25}rem` }}
+        >
+          <span className="min-w-6 shrink-0 tabular-nums text-muted">{block.label}</span>
           <span>
-            <Runs runs={block.runs} refValues={refValues} />
+            <Runs runs={block.runs} refs={refs} />
           </span>
         </p>
       );
@@ -132,11 +138,11 @@ function PreviewBlock({ block, refValues }: { block: Block; refValues: NdaDocume
 }
 
 /** On-screen rendering of the document model as a sheet of paper. */
-export function DocumentPreview({ doc }: { doc: NdaDocumentModel }) {
+export function DocumentPreview({ doc }: { doc: DocumentModel }) {
   return (
     <article className="mx-auto max-w-[8.5in] rounded-sm bg-paper px-6 py-10 font-serif text-[0.95rem] leading-relaxed text-text shadow-[0_1px_2px_rgba(31,42,68,0.06),0_12px_40px_-12px_rgba(31,42,68,0.18)] ring-1 ring-line sm:px-12 sm:py-14">
       {doc.blocks.map((b, i) => (
-        <PreviewBlock key={i} block={b} refValues={doc.refValues} />
+        <PreviewBlock key={i} block={b} refs={doc.refs} />
       ))}
     </article>
   );

@@ -4,11 +4,11 @@ import { useSyncExternalStore } from "react";
 import { GREETING, parseChat, type ChatMessage } from "./chat";
 
 /**
- * The drafting conversation, mirrored to localStorage next to the draft
+ * The drafting conversation, mirrored to localStorage next to the drafts
  * (same pattern as draftStore): the server snapshot is the greeting alone.
  */
 
-const STORAGE_KEY = "prelegal:mutual-nda:chat:v1";
+const STORAGE_KEY = "prelegal:chat:v2";
 const initial: ChatMessage[] = [GREETING];
 
 let state: ChatMessage[] | null = null;

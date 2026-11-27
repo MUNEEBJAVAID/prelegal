@@ -1,4 +1,4 @@
-import type { Block, NdaDocumentModel, SectionContent } from "../document";
+import type { Block, DocumentModel, SectionContent } from "../document";
 import type { Run } from "../terms";
 
 function runsToMarkdown(runs: Run[]): string {
@@ -31,17 +31,17 @@ function blockToMarkdown(block: Block): string {
       return [`### ${block.title}`, ...block.content.map(contentToMarkdown)].join("\n\n");
     case "signatures":
       return [
-        "| | PARTY 1 | PARTY 2 |",
+        `| | ${block.parties[0]} | ${block.parties[1]} |`,
         "|:--- | :----: | :----: |",
         ...block.rows.map((r) => `| ${r.label} | ${cell(r.cells[0])} | ${cell(r.cells[1])} |`),
       ].join("\n");
     case "heading":
       return `${block.newPage ? "---\n\n" : ""}## ${block.text}`;
     case "clause":
-      return `${block.number}. ${runsToMarkdown(block.runs)}`;
+      return `${"    ".repeat(block.level)}${block.level >= 2 ? "- " : ""}${block.label} ${runsToMarkdown(block.runs)}`;
   }
 }
 
-export function renderMarkdown(doc: NdaDocumentModel): string {
+export function renderMarkdown(doc: DocumentModel): string {
   return doc.blocks.map(blockToMarkdown).join("\n\n") + "\n";
 }

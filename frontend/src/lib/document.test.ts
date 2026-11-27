@@ -50,9 +50,9 @@ describe("buildNdaDocument", () => {
   });
 
   it("resolves Cover Page references to the entered values", () => {
-    const { refValues } = buildNdaDocument(completeData, terms);
-    expect(refValues["Governing Law"]).toBe("Delaware");
-    expect(refValues["Term of Confidentiality"]).toBe("In perpetuity.");
-    expect(buildNdaDocument(defaultNdaData, terms).refValues.Jurisdiction).toBe("");
+    const { refs } = buildNdaDocument(completeData, terms);
+    expect(refs["Governing Law"]).toEqual({ value: "Delaware", target: "governing-law" });
+    expect(refs["Term of Confidentiality"].value).toBe("In perpetuity.");
+    expect(buildNdaDocument(defaultNdaData, terms).refs.Jurisdiction.value).toBe("");
   });
 });
