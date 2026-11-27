@@ -14,7 +14,7 @@ import { buildNdaDocument, type DocumentModel } from "@/lib/document";
 import { FORMAT_LABELS, fileBaseName, renderDocument, saveBlob, type DownloadFormat } from "@/lib/download";
 import { useNdaDraft } from "@/lib/draftStore";
 import { applyFieldUpdates, buildGenericDocument, getMissingGenericFields } from "@/lib/genericDocument";
-import { getMissingFields, ndaFromValues, ndaToValues, type RequiredField } from "@/lib/nda";
+import { REQUIRED_FIELDS, getMissingFields, ndaFromValues, ndaToValues, type RequiredField } from "@/lib/nda";
 import { partyKey, type DocDef, type Values } from "@/lib/registry";
 import { useWorkspace } from "@/lib/workspaceStore";
 
@@ -30,6 +30,7 @@ type ActiveDocument = {
   model: DocumentModel;
   values: Values;
   missing: RequiredField[];
+  requiredCount: number;
   fileBase: string;
   form: (flagged: ReadonlySet<string>) => ReactNode;
 };
@@ -37,7 +38,7 @@ type ActiveDocument = {
 export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
   const { data: ndaData, setData: setNdaData, persisted, reset: resetNda } = useNdaDraft();
   const { documentType, values: docValues, setDocumentType, setValues, reset: resetWorkspace } = useWorkspace();
-  const { reset: resetChat } = useChat();
+  const { messages, setMessages, reset: resetChat } = useChat();
   const [view, setView] = useState<View>("form");
   const [panel, setPanel] = useState<Panel>("chat");
   const [showErrors, setShowErrors] = useState(false);
@@ -56,6 +57,7 @@ export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
         model: buildNdaDocument(ndaData, catalog.ndaTerms),
         values: ndaToValues(ndaData),
         missing: getMissingFields(ndaData),
+        requiredCount: REQUIRED_FIELDS.length,
         fileBase: fileBaseName("mutual-nda", [ndaData.party1.company, ndaData.party2.company]),
         form: (flagged) => (
           <NdaForm data={ndaData} onChange={setNdaData} flagged={flagged} missingCount={getMissingFields(ndaData).length} />
@@ -68,6 +70,7 @@ export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
       model: buildGenericDocument(def, values, catalog.clauses[def.id] ?? []),
       values,
       missing: getMissingGenericFields(def, values),
+      requiredCount: def.fields.filter((f) => f.required).length,
       fileBase: fileBaseName(def.id, def.parties.map((p) => values[`${partyKey(p)}.company`] ?? "")),
       form: (flagged) => (
         <GenericForm doc={def} values={values} onChange={(v) => setValues(def.id, v)} flagged={flagged} />
@@ -140,10 +143,24 @@ export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
     });
   }
 
+  /** Picking a document by hand (not via chat): the assistant picks up from there. */
   function selectDocument(id: string | null) {
+    const next = findDoc(id);
     setDocumentType(id);
     setShowErrors(false);
-    if (!id) setPanel("chat");
+    setPanel("chat");
+    setView("form");
+    if (next && next.id !== documentType) {
+      const [a, b] = next.parties;
+      const who = a ? `the ${a} and the ${b}` : "the two companies";
+      setMessages([
+        ...messages,
+        {
+          role: "assistant",
+          content: `Let’s draft a ${next.name}. I’ll ask a few questions and fill it in as we go. You can also type into the fields directly under “Edit fields”.\n\nTo start: who are the parties, ${who}? Please include each company’s legal name.`,
+        },
+      ]);
+    }
   }
 
   function handleReset() {
@@ -272,6 +289,10 @@ export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
               </button>
             ))}
           </div>
+          {/* The NDA form shows its own progress meter. */}
+          {active && !(panel === "fields" && active.def.kind === "nda") && (
+            <Progress missing={missing.length} total={active.requiredCount} />
+          )}
           {panel === "fields" && active ? (
             active.form(flagged)
           ) : (
@@ -301,6 +322,32 @@ export function DraftingWorkspace({ catalog }: { catalog: Catalog }) {
           onClose={() => setPending(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** How many required details are filled in, and whether the document is ready to download. */
+function Progress({ missing, total }: { missing: number; total: number }) {
+  const done = total - missing;
+  const pct = total ? Math.round((done / total) * 100) : 100;
+  return (
+    <div className="mb-3" aria-live="polite">
+      <div className="mb-1 flex items-baseline justify-between text-xs">
+        <span className={missing ? "text-muted" : "font-medium text-ink"}>
+          {missing ? `${done} of ${total} required details` : "All required details are filled in"}
+        </span>
+        <span className="text-muted">{missing ? `${pct}%` : "Ready to download"}</span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Required details completed"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={done}
+        className="h-1.5 overflow-hidden rounded-full bg-line"
+      >
+        <div className="h-full rounded-full bg-ink transition-[width] duration-500" style={{ width: `${pct}%` }} />
+      </div>
     </div>
   );
 }

@@ -6,6 +6,14 @@ import { ApiError, login } from "@/lib/api";
 import { signIn, useSession } from "@/lib/session";
 
 const APP_PATH = "/draft/";
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** Checks the form before calling the server; returns an error message or null. */
+export function validateLogin(email: string, password: string): string | null {
+  if (!EMAIL.test(email.trim())) return "Enter a valid email address, like name@company.com.";
+  if (!password) return "Enter a password (any password works in this preview).";
+  return null;
+}
 
 /** Placeholder sign-in screen: any email and password are accepted. */
 export function LoginForm() {
@@ -22,8 +30,10 @@ export function LoginForm() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    const invalid = validateLogin(email, password);
+    setError(invalid);
+    if (invalid) return;
     setBusy(true);
-    setError(null);
     try {
       signIn(await login(email.trim(), password));
     } catch (err) {
@@ -36,7 +46,7 @@ export function LoginForm() {
     "mt-1 block w-full rounded-md border border-brand-gray/50 bg-white px-3 py-2 text-brand-navy shadow-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/30";
 
   return (
-    <main className="flex flex-1 items-center justify-center bg-white px-4 py-12">
+    <main className="flex flex-1 items-center justify-center bg-gradient-to-b from-white to-brand-blue/[0.07] px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <p className="text-3xl font-semibold tracking-tight text-brand-navy">
@@ -47,7 +57,7 @@ export function LoginForm() {
 
         <form
           onSubmit={handleSubmit}
-          className="space-y-5 rounded-xl border border-brand-gray/25 bg-white p-6 shadow-sm"
+          className="space-y-5 rounded-xl border border-brand-gray/25 bg-white p-6 shadow-[0_12px_40px_-16px_rgba(3,33,71,0.25)]"
           noValidate
         >
           <h1 className="text-lg font-semibold text-brand-navy">Sign in</h1>
@@ -58,7 +68,9 @@ export function LoginForm() {
               type="email"
               name="email"
               autoComplete="email"
+              autoFocus
               required
+              aria-invalid={error?.includes("email") || undefined}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className={input}
@@ -72,6 +84,7 @@ export function LoginForm() {
               name="password"
               autoComplete="current-password"
               required
+              aria-invalid={error?.includes("password") || undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={input}

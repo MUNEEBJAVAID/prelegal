@@ -85,6 +85,9 @@ Filling in fields:
 short; don't list every field at once. Required fields come first; offer optional ones briefly.
 - Fill fields only from what the user has said or clearly confirmed, including earlier in the \
 conversation. Never invent names, addresses, dates or amounts. If something is ambiguous, ask.
+- Use details as soon as the user gives them: a company name they mention is that party's \
+company, even if it might not be the full legal name (the user can correct it later). Don't ask \
+again for information you just filled in.
 - In `updates`, include only fields of the current document that change in this turn, using \
 the exact field keys listed below. Dates are YYYY-MM-DD (today is {today}); numbers are digits; \
 choice fields take one of the listed options.
@@ -105,11 +108,23 @@ def describe_field(f: FieldDef, value: str) -> str:
     return " - ".join(parts)
 
 
-def build_system_prompt(reg: Registry, doc: DocumentType | None, values: dict[str, str]) -> str:
+JUST_SELECTED = """
+
+This document has just been selected. Before you reply, put every value the user has already \
+given anywhere in the conversation into `updates`. For example, if they named the companies, set \
+the matching "<party>.company" fields; if they gave a start date, set the date field. Then ask \
+only about what is still missing."""
+
+
+def build_system_prompt(
+    reg: Registry, doc: DocumentType | None, values: dict[str, str], just_selected: bool = False
+) -> str:
     catalog = "\n".join(f"- {d.id}: {d.name} - {d.description}" for d in reg.documents)
     if doc:
         fields = "\n".join(describe_field(f, values.get(f.key, "")) for f in doc.fields)
         current = f"Current document: {doc.name} ({doc.id}). Its fields:\n{fields}"
+        if just_selected:
+            current += JUST_SELECTED
     else:
         current = "No document is selected yet."
     return SYSTEM_PROMPT.format(catalog=catalog, today=date.today().isoformat(), current=current)
@@ -142,15 +157,28 @@ def valid_updates(doc: DocumentType | None, updates: list[FieldUpdate]) -> list[
 @router.post("/chat")
 def chat(body: ChatRequest, request: Request) -> ChatResponse:
     reg = registry()
+    schema = turn_model(tuple(reg.ids))
+    history = [m.model_dump() for m in body.messages]
+
+    def ask(doc: DocumentType | None, values: dict[str, str], just_selected: bool = False) -> Any:
+        system = build_system_prompt(reg, doc, values, just_selected)
+        return request.app.state.llm([{"role": "system", "content": system}, *history], schema)
+
     current = reg.get(body.documentType)
-    system = build_system_prompt(reg, current, body.values)
-    messages = [{"role": "system", "content": system}, *(m.model_dump() for m in body.messages)]
     try:
-        turn: Any = request.app.state.llm(messages, turn_model(tuple(reg.ids)))
+        turn = ask(current, body.values)
     except LLMError as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
 
     doc = reg.get(turn.documentType) or current
+    if doc and doc is not current:
+        # The model chose a document without seeing its fields. Ask again with them, so details
+        # the user already gave (party names, dates, ...) are filled in this same turn.
+        try:
+            turn = ask(doc, {}, just_selected=True)
+            doc = reg.get(turn.documentType) or doc
+        except LLMError:
+            pass  # Keep the first answer: the document is chosen, fields fill in next turn.
     return ChatResponse(
         reply=turn.reply,
         documentType=doc.id if doc else None,

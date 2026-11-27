@@ -29,4 +29,5 @@ dev = [
 filterwarnings = [
     # Raised by pydantic while importing litellm's own types; not actionable here.
     "ignore:Items? .* (is|are) using the `ReadOnly` qualifier:UserWarning",
+    "ignore::urllib3.exceptions.DependencyWarning",
 ]
