@@ -31,11 +31,8 @@ try {
 
 Write-Host "Starting backend..."
 New-Item -ItemType Directory -Force $RunDir | Out-Null
-$uvArgs = @("run")
-$envFile = Join-Path $Root ".env"
-# Relative to the backend directory: avoids quoting a path that may contain spaces.
-if (Test-Path $envFile) { $uvArgs += @("--env-file", "../.env") }
-$uvArgs += "prelegal-backend"
+# The backend loads ../.env (OPENROUTER_API_KEY) itself.
+$uvArgs = @("run", "prelegal-backend")
 $env:PORT = $Port
 $proc = Start-Process uv -ArgumentList $uvArgs -WorkingDirectory (Join-Path $Root "backend") `
     -RedirectStandardOutput $LogFile -RedirectStandardError "$LogFile.err" -WindowStyle Hidden -PassThru

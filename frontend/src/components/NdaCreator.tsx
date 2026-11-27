@@ -1,22 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChatPanel } from "./ChatPanel";
 import { DocumentPreview } from "./DocumentPreview";
 import { MissingFieldsDialog } from "./MissingFieldsDialog";
 import { NdaForm } from "./NdaForm";
 import { buildNdaDocument } from "@/lib/document";
 import { FORMAT_LABELS, fileBaseName, renderDocument, saveBlob, type DownloadFormat } from "@/lib/download";
+import { useChat } from "@/lib/chatStore";
 import { useNdaDraft } from "@/lib/draftStore";
 import { getMissingFields } from "@/lib/nda";
 import type { StandardTerms } from "@/lib/terms";
 
 type View = "form" | "preview";
+/** Left panel: AI chat, or the fields for direct edits. */
+type Panel = "chat" | "fields";
 
 const FORMATS: DownloadFormat[] = ["pdf", "docx", "md"];
 
 export function NdaCreator({ terms }: { terms: StandardTerms }) {
   const { data, persisted, setData, reset } = useNdaDraft();
+  const { reset: resetChat } = useChat();
   const [view, setView] = useState<View>("form");
+  const [panel, setPanel] = useState<Panel>("chat");
   const [showErrors, setShowErrors] = useState(false);
   const [pending, setPending] = useState<DownloadFormat | null>(null);
   const [busy, setBusy] = useState<DownloadFormat | null>(null);
@@ -50,6 +56,7 @@ export function NdaCreator({ terms }: { terms: StandardTerms }) {
     setPending(null);
     setShowErrors(true);
     setView("form");
+    setPanel("fields");
     const first = missing[0];
     // Wait for the form to be visible (mobile) before focusing.
     requestAnimationFrame(() => {
@@ -60,8 +67,9 @@ export function NdaCreator({ terms }: { terms: StandardTerms }) {
   }
 
   function handleReset() {
-    if (window.confirm("Clear all details and start a new NDA?")) {
+    if (window.confirm("Clear all details and the conversation, and start a new NDA?")) {
       reset();
+      resetChat();
       setShowErrors(false);
     }
   }
@@ -129,7 +137,7 @@ export function NdaCreator({ terms }: { terms: StandardTerms }) {
                 onClick={() => setView(v)}
                 className={`rounded-md py-1.5 transition-colors ${view === v ? "bg-paper text-ink shadow-sm" : "text-muted"}`}
               >
-                {v === "form" ? `Details${missing.length ? ` · ${missing.length} left` : ""}` : "Preview"}
+                {v === "form" ? `Draft${missing.length ? ` · ${missing.length} left` : ""}` : "Preview"}
               </button>
             ))}
           </div>
@@ -154,7 +162,27 @@ export function NdaCreator({ terms }: { terms: StandardTerms }) {
           aria-labelledby="tab-form"
           className={`${view === "form" ? "" : "hidden"} lg:sticky lg:top-24 lg:block lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto lg:pr-2`}
         >
-          <NdaForm data={data} onChange={setData} flagged={flagged} missingCount={missing.length} />
+          <div role="tablist" aria-label="Drafting mode" className="mb-3 flex gap-1 border-b border-line text-sm font-medium">
+            {(["chat", "fields"] as const).map((p) => (
+              <button
+                key={p}
+                type="button"
+                role="tab"
+                aria-selected={panel === p}
+                onClick={() => setPanel(p)}
+                className={`-mb-px border-b-2 px-3 py-2 transition-colors ${
+                  panel === p ? "border-ink text-ink" : "border-transparent text-muted hover:text-ink"
+                }`}
+              >
+                {p === "chat" ? "Chat" : `Edit fields${missing.length ? ` · ${missing.length} left` : ""}`}
+              </button>
+            ))}
+          </div>
+          {panel === "chat" ? (
+            <ChatPanel data={data} onChange={setData} />
+          ) : (
+            <NdaForm data={data} onChange={setData} flagged={flagged} missingCount={missing.length} />
+          )}
         </div>
         <div
           id="panel-preview"
